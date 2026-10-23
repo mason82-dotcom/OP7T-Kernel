@@ -120,6 +120,8 @@ def collect(root, expected_sha, profile):
     wlan = [m for m in module_details if Path(m["path"]).name in {"wlan.ko", "qca_cld3_wlan.ko"}]
     if not wlan:
         raise ValueError("CONFIG_QCA_CLD_WLAN=m but no built Qualcomm WLAN module found")
+    unsigned = [m["path"] for m in module_details if not m["has_embedded_signature"]]
+    signature_load_blocked = cfg["CONFIG_MODULE_SIG_FORCE"] == "y" and bool(unsigned)
     return {
         "schema": "op7t-kernel-artifact-report-v1",
         "device": "hotdog",
@@ -134,6 +136,13 @@ def collect(root, expected_sha, profile):
         "dtbs": [{"path": str(p.relative_to(root)), "sha256": sha256_file(p)} for p in dtbs],
         "module_count": len(modules),
         "signed_module_count": sum(m["has_embedded_signature"] for m in module_details),
+        "unsigned_modules": unsigned,
+        "module_signature_enforcement": cfg["CONFIG_MODULE_SIG_FORCE"] == "y",
+        "module_signature_load_blocked": signature_load_blocked,
+        "module_runtime_compatibility": (
+            "blocked_unsigned_modules" if signature_load_blocked
+            else "unverified_rom_key_trust_and_abi"
+        ),
         "wlan_module_count": len(wlan),
         "modules": module_details,
         "rom_module_key_trust_verified": False,
@@ -141,11 +150,15 @@ def collect(root, expected_sha, profile):
         "boot_image_verified": False,
         "flash_ready": False,
         "status": "RAW_ARTIFACT_ONLY_UNVERIFIED",
-        "warnings": [
+        "warnings": (
+            (["UNSIGNED MODULE(S) with CONFIG_MODULE_SIG_FORCE=y: kernel rejects unsigned modules; do not flash"]
+             if signature_load_blocked else [])
+            + [
             "Module signer and vermagic cannot establish ABI or trusted-key compatibility with the installed ROM",
             "DTBs are not yet matched with the exact installed ROM boot image",
             "Never flash Image, DTBs or modules from this report directly",
-        ],
+            ]
+        ),
     }
 
 
