@@ -61,7 +61,10 @@ jobs:
           STRIP: llvm-strip-14
           JOBS: 2
           PROFILE: ${{ inputs.profile || 'baseline' }}
-        run: bash scripts/build.sh "$PROFILE"
+        run: |
+          CONFIG_ONLY=1 bash scripts/build.sh core
+          CONFIG_ONLY=1 bash scripts/build.sh external
+          bash scripts/build.sh "$PROFILE"
       - name: Upload raw kernel and modules
         if: success()
         uses: actions/upload-artifact@v4

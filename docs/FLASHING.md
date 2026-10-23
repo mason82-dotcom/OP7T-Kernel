@@ -33,6 +33,14 @@ Any packaging must preserve the **exact** installed ROM's boot image metadata, D
 
 The vendor overlay sets `CONFIG_QCA_CLD_WLAN=m`; the base defconfig sets `CONFIG_MODULE_SIG_FORCE=y`. Existing ROM `wlan.ko` or `vendor_dlkm` modules can refuse to load after a rebuilt kernel due to signatures, vermagic or ABI. Do not disable signature enforcement just to bypass this check. A verified compatible and correctly signed module deployment plan is a separate release requirement.
 
+## Build-to-ROM provenance lock
+
+`config/rom-reference.json` records the public crDroid 13 `hotdog` OTA package released on **2026-10-21** and its published SHA-256. This is a **reference**, not proof that a connected phone is running that exact build. A downloaded ROM ZIP can be verified offline with:
+
+    python3 scripts/verify-rom-zip.py crDroidAndroid-17.0-20261021-hotdog-v13.0.zip
+
+Only the exact installed build's original boot/DTBO and vendor modules can serve as compatibility references for any boot image packaging. The checksum verification script does not extract, patch or flash the ZIP.
+
 ## Additional build artifact audit
 
 The generated `artifact-report.json` records the Image header, source SHA, DTBs, module hashes, vermagic and signer identities. **Even signed modules may fail to load** if the certificate is not trusted by the exact running kernel. A successful audit is a raw-build check, not a flash certification. `flash_ready` is always `false`.

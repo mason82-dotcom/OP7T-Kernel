@@ -71,6 +71,19 @@ VERIFY=(--config "$OUT/.config")
 for fragment in "${FRAGMENTS[@]}"; do VERIFY+=(--fragment "$fragment"); done
 python3 "$ROOT/scripts/verify-config.py" "${VERIFY[@]}"
 
+# Fast configuration-only acceptance path; never emits an Image, DTBs or modules.
+case "${CONFIG_ONLY:-0}" in
+  0) ;;
+  1)
+    mkdir -p "$ART"
+    cp "$OUT/.config" "$ART/kernel.config"
+    git -C "$KERNEL" rev-parse HEAD > "$ART/upstream-commit.txt"
+    echo "CONFIG_ONLY PASSED for $PROFILE; no kernel built or flashable artifacts"
+    exit 0
+    ;;
+  *) echo "CONFIG_ONLY accepts only 0 or 1" >&2; exit 2 ;;
+esac
+
 # BoardConfigCommon.mk: BOARD_KERNEL_IMAGE_NAME := Image
 make -C "$KERNEL" "${KARGS[@]}" -j"$JOBS" Image dtbs modules
 IMAGE="$OUT/arch/arm64/boot/Image"
