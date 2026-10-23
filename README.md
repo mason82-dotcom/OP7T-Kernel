@@ -49,6 +49,12 @@ LLVM toolchain note: older Qualcomm Kbuild may invoke unsuffixed `llvm-nm` and `
 
 At the end of a successful kernel build `scripts/audit-artifacts.py` checks the raw ARM64 Image magic, all DTBs, the pinned source commit, expected Kconfig safety constraints, and the presence of rebuilt kernel modules. It records each module's `modinfo` vermagic and signer, plus hashes, in `artifact-report.json`. It cannot assert trusted keys for the installed ROM; the report's `flash_ready` remains `false` by design. A missing module signer is recorded, **not** worked around. Any failure prevents publication of seemingly complete build artifacts.
 
+## NetHunter feature assessment
+
+The USB HID ConfigFS functionality is **already enabled** in the pinned kernel. The `core` profile additionally requests RFCOMM and RFCOMM TTY for Bluetooth Arsenal and CDC ACM/ECM. Use `external` for the experimental in-tree USB Wi-Fi drivers. No code patch for Qualcomm internal monitor/injection has been merged.
+
+The official NetHunter kernel registry distinguishes `HID-4`, `BT_RFCOMM`, `QCACLD`, `ATH9K_HTC` and `Injection` features. Enabling Kconfig symbols **alone** does not justify advertising these as working. See [feature validation and driver research](docs/NETHUNTER_FEATURES.md).
+
 ## Mandatory release gates
 
 The **original** ROM boot image, active slot, original module signatures and firmware, boot header and DTB/DTBO must be validated from the actual installed build. Kernel module signatures matter: baseline `CONFIG_MODULE_SIG_FORCE=y` while OPlus enables `CONFIG_QCA_CLD_WLAN=m`. Do **not** disable module security enforcement to make an image appear compatible.
