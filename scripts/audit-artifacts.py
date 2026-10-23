@@ -55,12 +55,17 @@ def module_metadata(path, relative):
         return result.stdout.strip()
 
     signer = field("signer")
+    vermagic = field("vermagic")
+    if not vermagic:
+        raise ValueError(f"Module {relative} has no vermagic")
     return {
         "path": relative,
         "size_bytes": path.stat().st_size,
         "sha256": sha256_file(path),
-        "vermagic": field("vermagic"),
+        "vermagic": vermagic,
         "signer": signer if signer else None,
+        "signature_key_id": field("sig_key") or None,
+        "signature_hash_algorithm": field("sig_hashalgo") or None,
         "has_embedded_signature": bool(signer),
         # Presence of signature != ROM key trust: no trust claims here.
     }
@@ -99,15 +104,30 @@ def collect(root, expected_sha, profile):
         raise ValueError("No DTBs captured; packaging must be blocked")
     if not modules:
         raise ValueError("No kernel modules captured; cannot audit vendor WLAN")
+    release_file = root / "kernel.release"
+    if not release_file.is_file():
+        raise ValueError("Missing kernel.release")
+    release = release_file.read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"[a-zA-Z0-9._+\\-]+", release):
+        raise ValueError("Invalid kernel.release")
     module_details = [module_metadata(path, str(path.relative_to(root))) for path in modules]
-    wlan = [m for m in module_details if m["path"].endswith("/wlan.ko")]
-    # A missing wlan.ko is not misrepresented as compatible; the report remains unverified.
+    incompatible = [
+        m["path"] for m in module_details
+        if m["vermagic"].split()[0] != release
+    ]
+    if incompatible:
+        raise ValueError(f"Built module vermagic does not match {release}: {incompatible[:10]}")
+    wlan = [m for m in module_details if Path(m["path"]).name in {"wlan.ko", "qca_cld3_wlan.ko"}]
+    if not wlan:
+        raise ValueError("CONFIG_QCA_CLD_WLAN=m but no built Qualcomm WLAN module found")
     return {
         "schema": "op7t-kernel-artifact-report-v1",
         "device": "hotdog",
         "rom": "crDroid 13 / Android 17",
         "profile": profile,
         "upstream_commit": commit,
+        "kernel_release": release,
+        "build_module_vermagic_match": True,
         "image": {"path": "Image", "size_bytes": image.stat().st_size, "sha256": sha256_file(image)},
         "final_config": cfg,
         "dtb_count": len(dtbs),

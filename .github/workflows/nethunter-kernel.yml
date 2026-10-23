@@ -62,9 +62,35 @@ jobs:
           JOBS: 2
           PROFILE: ${{ inputs.profile || 'baseline' }}
         run: |
-          CONFIG_ONLY=1 bash scripts/build.sh core
-          CONFIG_ONLY=1 bash scripts/build.sh external
-          bash scripts/build.sh "$PROFILE"
+          mkdir -p .work/ci
+          set -o pipefail
+          {
+            CONFIG_ONLY=1 bash scripts/build.sh core
+            CONFIG_ONLY=1 bash scripts/build.sh external
+            bash scripts/build.sh "$PROFILE"
+          } 2>&1 | tee .work/ci/build.log
+      - name: Prepare restricted failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p .work/ci-diagnostics
+          for profile in core external baseline; do
+            if test -s ".work/out-$profile/.config"; then
+              cp ".work/out-$profile/.config" ".work/ci-diagnostics/$profile.config"
+            fi
+          done
+          if test -s .work/ci/build.log; then
+            tail -n 2500 .work/ci/build.log > .work/ci-diagnostics/build-log-tail.txt
+          fi
+          printf '%s\n' 'Unverified failed build; no binaries are flashable.' > .work/ci-diagnostics/README.txt
+      - name: Upload restricted failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-failed-build-${{ github.run_id }}
+          path: .work/ci-diagnostics/
+          if-no-files-found: warn
+          retention-days: 3
       - name: Upload raw kernel and modules
         if: success()
         uses: actions/upload-artifact@v4

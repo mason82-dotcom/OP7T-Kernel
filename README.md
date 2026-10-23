@@ -47,7 +47,9 @@ LLVM toolchain note: older Qualcomm Kbuild may invoke unsuffixed `llvm-nm` and `
 
 ## Artifact compatibility audit
 
-At the end of a successful kernel build `scripts/audit-artifacts.py` checks the raw ARM64 Image magic, all DTBs, the pinned source commit, expected Kconfig safety constraints, and the presence of rebuilt kernel modules. It records each module's `modinfo` vermagic and signer, plus hashes, in `artifact-report.json`. It cannot assert trusted keys for the installed ROM; the report's `flash_ready` remains `false` by design. A missing module signer is recorded, **not** worked around. Any failure prevents publication of seemingly complete build artifacts.
+At the end of a successful kernel build `scripts/audit-artifacts.py` checks the raw ARM64 Image magic, all DTBs, the pinned source commit, expected Kconfig safety constraints, and the presence of rebuilt kernel modules. It records each module's `modinfo` vermagic, signer, signature key ID, algorithm and hashes in `artifact-report.json`, verifies that all captured modules match the just-built `kernel.release` and requires an actual Qualcomm `wlan.ko` (or `qca_cld3_wlan.ko`). `Module.symvers`, `modules.order` and `System.map` are retained when generated for offline ABI investigation. It cannot assert trusted keys for the installed ROM; the report's `flash_ready` remains `false` by design. A missing module signer is recorded, **not** worked around. Any failure prevents publication of seemingly complete build artifacts.
+
+On build failure, GitHub Actions uploads only the last 2,500 lines of a build log and the relevant `.config` files for diagnosis. It explicitly avoids exporting the working tree or any generated module-signing private keys. **These checks cannot establish compatibility with the installed ROM**.
 
 ## NetHunter feature assessment
 

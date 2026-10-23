@@ -92,6 +92,10 @@ cp "$IMAGE" "$ART/Image"
 cp "$OUT/.config" "$ART/kernel.config"
 git -C "$KERNEL" rev-parse HEAD > "$ART/upstream-commit.txt"
 "$CC_BIN" --version > "$ART/compiler.txt"
+make -s -C "$KERNEL" "${KARGS[@]}" kernelrelease > "$ART/kernel.release"
+for metadata in Module.symvers modules.order System.map; do
+  if [[ -s "$OUT/$metadata" ]]; then cp "$OUT/$metadata" "$ART/$metadata"; fi
+done
 
 while IFS= read -r -d '' module; do
   relative="${module#"$OUT/"}"

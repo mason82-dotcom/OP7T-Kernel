@@ -43,7 +43,7 @@ Only the exact installed build's original boot/DTBO and vendor modules can serve
 
 ## Additional build artifact audit
 
-The generated `artifact-report.json` records the Image header, source SHA, DTBs, module hashes, vermagic and signer identities. **Even signed modules may fail to load** if the certificate is not trusted by the exact running kernel. A successful audit is a raw-build check, not a flash certification. `flash_ready` is always `false`.
+The generated `artifact-report.json` records the Image header, source SHA, DTBs, module hashes, vermagic, signer identity, signature key ID and algorithm. It verifies **build-internal** module release consistency and requires the Qualcomm WLAN module. The optional `Module.symvers` and `System.map` are retained for detailed local investigation. **Even signed modules may fail to load** if the certificate is not trusted by the exact running kernel. A successful audit is a raw-build check, not a flash certification. `flash_ready` is always `false`.
 
 ## Required tests before any real flash
 

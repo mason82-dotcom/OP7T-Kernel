@@ -19,6 +19,7 @@ def fixture(root):
         "CONFIG_MODULE_SIG_FORCE=y\nCONFIG_QCA_CLD_WLAN=m\nCONFIG_USB_CONFIGFS_F_HID=y\n"
     )
     (root / "upstream-commit.txt").write_text(SOURCE_SHA + "\n")
+    (root / "kernel.release").write_text("4.14.357-perf\n")
     (root / "dtbs").mkdir()
     (root / "dtbs" / "hotdog.dtb").write_bytes(b"dtb-data")
     (root / "modules").mkdir()
@@ -68,6 +69,34 @@ class AuditTests(unittest.TestCase):
             (root / "dtbs" / "hotdog.dtb").unlink()
             with self.assertRaisesRegex(ValueError, "No DTBs"):
                 AUDIT.collect(root, SOURCE_SHA, "baseline")
+
+    def test_vermagic_mismatch_fails_closed(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            bad = {
+                "path": "modules/wlan.ko",
+                "vermagic": "4.14.350-perf SMP",
+                "signer": None,
+                "has_embedded_signature": False,
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=bad):
+                with self.assertRaisesRegex(ValueError, "vermagic"):
+                    AUDIT.collect(root, SOURCE_SHA, "baseline")
+
+    def test_missing_wlan_module_fails_closed(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            unrelated = {
+                "path": "modules/other.ko",
+                "vermagic": "4.14.357-perf SMP",
+                "signer": None,
+                "has_embedded_signature": False,
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=unrelated):
+                with self.assertRaisesRegex(ValueError, "no built Qualcomm WLAN"):
+                    AUDIT.collect(root, SOURCE_SHA, "baseline")
 
     def test_missing_modinfo_fails_closed(self):
         with tempfile.TemporaryDirectory() as name:
