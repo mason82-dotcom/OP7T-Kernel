@@ -57,6 +57,10 @@ The generated `artifact-report.json` records the Image header, source SHA, DTBs,
 
 With the exact installed ROM's original `wlan.ko` available locally, run `scripts/compare-rom-modules.py` with `--built` and `--rom` paths. Compare `vermagic` and signer/key identifiers; mismatches are blockers, matching values are **not approval**. The script neither extracts the installed ROM nor writes to the device. Check the *actual* trusted module certificates and symbol ABI separately before image packaging.
 
+## Live ROM inventory without root
+
+After USB debugging has been authorized on the **OnePlus 7T Pro hotdog**, run `bash scripts/device-module-audit.sh` from a machine with Android Platform Tools. The command repeats `scripts/device-audit.sh` and prints the ROM and vendor fingerprints, Android security patch, verified-boot state and ADB-readable module paths. If `wlan.ko` is readable, the device calculates its SHA-256 without uploading the original binary or writing to the phone. Nonstandard or inaccessible paths are recorded as **unknown**, not absence. It cannot obtain the private signing key, verify ABI or imply boot compatibility.
+
 ## Required tests before any real flash
 
 1. Compile and compare `baseline`, `core` and (optionally) `external` on an isolated builder; inspect all failures.
