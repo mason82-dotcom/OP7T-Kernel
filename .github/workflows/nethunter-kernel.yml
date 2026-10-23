@@ -34,7 +34,7 @@ jobs:
           [[ "$UPSTREAM_SHA" =~ ^[a-f0-9]{40}$ ]]
 
   build:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 180
@@ -56,12 +56,13 @@ jobs:
           OBJDUMP: llvm-objdump-14
           STRIP: llvm-strip-14
           JOBS: 2
-        run: bash scripts/build.sh "${{ inputs.profile }}"
+          PROFILE: ${{ inputs.profile || 'baseline' }}
+        run: bash scripts/build.sh "$PROFILE"
       - name: Upload raw kernel and modules
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: hotdog-unverified-${{ inputs.profile }}-${{ github.sha }}
-          path: .work/artifacts/${{ inputs.profile }}/
+          name: hotdog-unverified-${{ inputs.profile || 'baseline' }}-${{ github.sha }}
+          path: .work/artifacts/${{ inputs.profile || 'baseline' }}/
           if-no-files-found: error
           retention-days: 7
