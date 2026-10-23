@@ -1,0 +1,10 @@
+# USB ConfigFS and HID already enabled in the pinned crDroid kernel.
+# Keep Bluetooth RFCOMM in core for NetHunter BT Arsenal; runtime is unverified.
+CONFIG_SYSVIPC=y
+CONFIG_USB_ACM=y
+CONFIG_USB_CONFIGFS_ACM=y
+CONFIG_USB_CONFIGFS_ECM=y
+CONFIG_USB_SERIAL=y
+CONFIG_USB_SERIAL_GENERIC=y
+CONFIG_BT_RFCOMM=y
+CONFIG_BT_RFCOMM_TTY=y

@@ -1,0 +1,101 @@
+name: NetHunter hotdog kernel
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Experimental profile (not flashable)
+        type: choice
+        default: baseline
+        required: true
+        options: [baseline, core, external]
+
+concurrency:
+  group: kernel-${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: bash -n scripts/fetch-source.sh scripts/build.sh scripts/device-audit.sh
+      - name: Python config validation tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Version and SHA lock
+        shell: bash
+        run: |
+          source config/upstream.lock
+          test "$DEVICE" = hotdog
+          test "$ROM_ANDROID" = 17
+          test "$ROM_CRDROID" = 13
+          [[ "$UPSTREAM_SHA" =~ ^[a-f0-9]{40}$ ]]
+
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    needs: lint
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install experimental Clang 14 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex make build-essential git python3 \
+            libelf-dev libssl-dev kmod clang-14 lld-14 llvm-14 \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+      - name: Build pinned kernel (not a boot image)
+        env:
+          CC: clang-14
+          LD: ld.lld-14
+          AR: llvm-ar-14
+          NM: llvm-nm-14
+          OBJCOPY: llvm-objcopy-14
+          OBJDUMP: llvm-objdump-14
+          STRIP: llvm-strip-14
+          JOBS: 2
+          PROFILE: ${{ inputs.profile || 'baseline' }}
+        run: |
+          mkdir -p .work/ci
+          set -o pipefail
+          {
+            CONFIG_ONLY=1 bash scripts/build.sh core
+            CONFIG_ONLY=1 bash scripts/build.sh external
+            bash scripts/build.sh "$PROFILE"
+          } 2>&1 | tee .work/ci/build.log
+      - name: Prepare restricted failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p .work/ci-diagnostics
+          for profile in core external baseline; do
+            if test -s ".work/out-$profile/.config"; then
+              cp ".work/out-$profile/.config" ".work/ci-diagnostics/$profile.config"
+            fi
+          done
+          if test -s .work/ci/build.log; then
+            tail -n 2500 .work/ci/build.log > .work/ci-diagnostics/build-log-tail.txt
+          fi
+          printf '%s\n' 'Unverified failed build; no binaries are flashable.' > .work/ci-diagnostics/README.txt
+      - name: Upload restricted failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-failed-build-${{ github.run_id }}
+          path: .work/ci-diagnostics/
+          if-no-files-found: warn
+          retention-days: 3
+      - name: Upload raw kernel and modules
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-unverified-${{ inputs.profile || 'baseline' }}-${{ github.sha }}
+          path: .work/artifacts/${{ inputs.profile || 'baseline' }}/
+          if-no-files-found: error
+          retention-days: 7
