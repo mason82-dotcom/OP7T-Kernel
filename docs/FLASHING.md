@@ -33,6 +33,10 @@ Any packaging must preserve the **exact** installed ROM's boot image metadata, D
 
 The vendor overlay sets `CONFIG_QCA_CLD_WLAN=m`; the base defconfig sets `CONFIG_MODULE_SIG_FORCE=y`. Existing ROM `wlan.ko` or `vendor_dlkm` modules can refuse to load after a rebuilt kernel due to signatures, vermagic or ABI. Do not disable signature enforcement just to bypass this check. A verified compatible and correctly signed module deployment plan is a separate release requirement.
 
+## Additional build artifact audit
+
+The generated `artifact-report.json` records the Image header, source SHA, DTBs, module hashes, vermagic and signer identities. **Even signed modules may fail to load** if the certificate is not trusted by the exact running kernel. A successful audit is a raw-build check, not a flash certification. `flash_ready` is always `false`.
+
 ## Required tests before any real flash
 
 1. Compile and compare `baseline`, `core` and (optionally) `external` on an isolated builder; inspect all failures.

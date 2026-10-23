@@ -27,7 +27,7 @@ Internal QCACLD monitor/injection is **not implemented**. Older NetHunter Androi
 ## Build on Linux x86_64
 
     sudo apt-get install -y git make bc bison flex python3 build-essential \
-      libelf-dev libssl-dev clang-14 lld-14 llvm-14 \
+      libelf-dev libssl-dev kmod clang-14 lld-14 llvm-14 \
       gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
     bash scripts/fetch-source.sh
@@ -37,13 +37,17 @@ Internal QCACLD monitor/injection is **not implemented**. Older NetHunter Androi
 
 Replace `baseline` with `core` or `external` to build other profiles. Clang 14 is an **initial experimental compiler selection**, not a proven exact crDroid ROM build toolchain. GitHub Actions runs lightweight syntax/config checks on pushes, an experimental **baseline kernel compilation on pull requests**, and offers manual workflow dispatch for the core/external profiles. Successful compilation alone does not establish flash/ROM compatibility.
 
-Outputs are written to `.work/artifacts/<profile>/`: `Image`, module files, DTBs, `kernel.config`, compiler version, source SHA and `SHA256SUMS`. **None are a flashable ZIP or boot image.**
+Outputs are written to `.work/artifacts/<profile>/`: `Image`, module files, DTBs, `kernel.config`, compiler version, source SHA, `artifact-report.json` and `SHA256SUMS`. **None are a flashable ZIP or boot image.**
 
 ## Read-only device compatibility check
 
 With USB debugging enabled and adb available, run `bash scripts/device-audit.sh` (or `bash scripts/device-audit.sh --serial <ADB_SERIAL>` for multiple devices). It prints device codename, Android/ROM version, kernel, ROM fingerprint and active slot. It rejects non-`hotdog`/non-Android-17 devices and **never modifies the phone**. This does not determine module signature or boot image compatibility.
 
 LLVM toolchain note: older Qualcomm Kbuild may invoke unsuffixed `llvm-nm` and `llvm-ar`, even if `AR=llvm-ar-14` and `NM=llvm-nm-14` were specified. `scripts/build.sh` now prepends `/usr/lib/llvm-14/bin` when using `clang-14`, or accepts `LLVM_TOOLCHAIN_BIN` explicitly.
+
+## Artifact compatibility audit
+
+At the end of a successful kernel build `scripts/audit-artifacts.py` checks the raw ARM64 Image magic, all DTBs, the pinned source commit, expected Kconfig safety constraints, and the presence of rebuilt kernel modules. It records each module's `modinfo` vermagic and signer, plus hashes, in `artifact-report.json`. It cannot assert trusted keys for the installed ROM; the report's `flash_ready` remains `false` by design. A missing module signer is recorded, **not** worked around. Any failure prevents publication of seemingly complete build artifacts.
 
 ## Mandatory release gates
 

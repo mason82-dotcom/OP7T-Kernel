@@ -89,6 +89,7 @@ while IFS= read -r -d '' dtb; do
   install -D -m 0644 "$dtb" "$ART/dtbs/$relative"
 done < <(find "$OUT/arch/arm64/boot/dts" -type f -name '*.dtb' -print0)
 
+python3 "$ROOT/scripts/audit-artifacts.py" "$ART" --expected-sha "$UPSTREAM_SHA" --profile "$PROFILE"
 (
   cd "$ART"
   find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 -r sha256sum > SHA256SUMS

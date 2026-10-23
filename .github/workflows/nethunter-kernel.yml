@@ -13,7 +13,7 @@ on:
         options: [baseline, core, external]
 
 concurrency:
-  group: kernel-${{ github.workflow }}-${{ github.ref }}
+  group: kernel-${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -48,7 +48,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison flex make build-essential git python3 \
-            libelf-dev libssl-dev clang-14 lld-14 llvm-14 \
+            libelf-dev libssl-dev kmod clang-14 lld-14 llvm-14 \
             gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
       - name: Build pinned kernel (not a boot image)
         env:
