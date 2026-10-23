@@ -35,7 +35,7 @@ Internal QCACLD monitor/injection is **not implemented**. Older NetHunter Androi
       OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 \
       bash scripts/build.sh baseline
 
-Replace `baseline` with `core` or `external` to build other profiles. Clang 14 is an **initial experimental compiler selection**, not a proven exact crDroid ROM build toolchain. GitHub Actions offers manual workflow dispatch with a profile selector and lightweight automated syntax/config tests on pushes/PRs.
+Replace `baseline` with `core` or `external` to build other profiles. Clang 14 is an **initial experimental compiler selection**, not a proven exact crDroid ROM build toolchain. GitHub Actions runs lightweight syntax/config checks on pushes, an experimental **baseline kernel compilation on pull requests**, and offers manual workflow dispatch for the core/external profiles. Successful compilation alone does not establish flash/ROM compatibility.
 
 Outputs are written to `.work/artifacts/<profile>/`: `Image`, module files, DTBs, `kernel.config`, compiler version, source SHA and `SHA256SUMS`. **None are a flashable ZIP or boot image.**
 
