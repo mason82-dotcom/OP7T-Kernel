@@ -39,6 +39,12 @@ Replace `baseline` with `core` or `external` to build other profiles. Clang 14 i
 
 Outputs are written to `.work/artifacts/<profile>/`: `Image`, module files, DTBs, `kernel.config`, compiler version, source SHA and `SHA256SUMS`. **None are a flashable ZIP or boot image.**
 
+## Read-only device compatibility check
+
+With USB debugging enabled and adb available, run `bash scripts/device-audit.sh` (or `bash scripts/device-audit.sh --serial <ADB_SERIAL>` for multiple devices). It prints device codename, Android/ROM version, kernel, ROM fingerprint and active slot. It rejects non-`hotdog`/non-Android-17 devices and **never modifies the phone**. This does not determine module signature or boot image compatibility.
+
+LLVM toolchain note: older Qualcomm Kbuild may invoke unsuffixed `llvm-nm` and `llvm-ar`, even if `AR=llvm-ar-14` and `NM=llvm-nm-14` were specified. `scripts/build.sh` now prepends `/usr/lib/llvm-14/bin` when using `clang-14`, or accepts `LLVM_TOOLCHAIN_BIN` explicitly.
+
 ## Mandatory release gates
 
 The **original** ROM boot image, active slot, original module signatures and firmware, boot header and DTB/DTBO must be validated from the actual installed build. Kernel module signatures matter: baseline `CONFIG_MODULE_SIG_FORCE=y` while OPlus enables `CONFIG_QCA_CLD_WLAN=m`. Do **not** disable module security enforcement to make an image appear compatible.

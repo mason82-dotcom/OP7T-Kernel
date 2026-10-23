@@ -4,6 +4,12 @@ The output is a raw kernel payload and unsigned/rebuilt module set, **not** a fu
 
 ## Exact installed device and ROM
 
+A read-only version and slot check is provided:
+
+    bash scripts/device-audit.sh
+
+For troubleshooting, the equivalent commands can be executed individually:
+
     adb shell getprop ro.product.device
     adb shell getprop ro.build.version.release
     adb shell getprop ro.build.fingerprint
