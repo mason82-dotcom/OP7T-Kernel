@@ -57,6 +57,14 @@ The generated `artifact-report.json` records the Image header, source SHA, DTBs,
 
 With the exact installed ROM's original `wlan.ko` available locally, run `scripts/compare-rom-modules.py` with `--built` and `--rom` paths. Compare `vermagic` and signer/key identifiers; mismatches are blockers, matching values are **not approval**. The script neither extracts the installed ROM nor writes to the device. Check the *actual* trusted module certificates and symbol ABI separately before image packaging.
 
+## Original boot.img v2 structure audit (read only)
+
+The device board configuration declares `BOARD_BOOT_HEADER_VERSION=2`, `BOARD_KERNEL_PAGESIZE=4096`, `BOARD_INCLUDE_DTB_IN_BOOTIMG=true` and a raw `Image`. Given the original `boot.img` from the exact installed build:
+
+    python3 scripts/audit-bootimg.py /path/to/original-boot.img --expect-sha256 <known_original_sha256>
+
+The script validates the **v2 structure only**: ARM64 Image magic, embedded FDT magic, section size, offsets and SHA-256. It prints bounded JSON and neither extracts nor modifies the input. If the ROM differs from board assumptions, fail and investigate; **do not** force it to pass, and do not flash any generated output. This is not a verified repack, AVB check, device-slot check or compatibility sign-off.
+
 ## Required tests before any real flash
 
 1. Compile and compare `baseline`, `core` and (optionally) `external` on an isolated builder; inspect all failures.
