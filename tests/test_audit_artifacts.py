@@ -37,6 +37,7 @@ class AuditTests(unittest.TestCase):
                 "sha256": "0" * 64,
                 "vermagic": "4.14.357-perf SMP",
                 "signer": "testing-only",
+                "signature_key_id": "AA:BB",
                 "has_embedded_signature": True,
             }
             with patch.object(AUDIT, "module_metadata", return_value=fake):
@@ -47,6 +48,53 @@ class AuditTests(unittest.TestCase):
             self.assertEqual(1, report["module_count"])
             self.assertEqual(1, report["dtb_count"])
             self.assertEqual("RAW_ARTIFACT_ONLY_UNVERIFIED", report["status"])
+
+    def test_signed_module_passes_strict_stage_gate_but_not_rom_verification(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            signed = {
+                "path": "modules/wlan.ko",
+                "vermagic": "4.14.357-perf SMP",
+                "signer": "Ephemeral kernel build cert",
+                "signature_key_id": "AA:BB",
+                "has_embedded_signature": True,
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=signed):
+                report = AUDIT.collect(root, SOURCE_SHA, "core", require_signed=True)
+            self.assertEqual(1, report["signed_module_count"])
+            self.assertFalse(report["rom_module_key_trust_verified"])
+            self.assertFalse(report["flash_ready"])
+
+    def test_strict_stage_gate_rejects_unsigned_module(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            unsigned = {
+                "path": "modules/wlan.ko",
+                "vermagic": "4.14.357-perf SMP",
+                "signer": None,
+                "signature_key_id": None,
+                "has_embedded_signature": False,
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=unsigned):
+                with self.assertRaisesRegex(ValueError, "Unsigned staged kernel modules"):
+                    AUDIT.collect(root, SOURCE_SHA, "external", require_signed=True)
+
+    def test_strict_stage_gate_rejects_missing_key_id(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            inconsistent = {
+                "path": "modules/wlan.ko",
+                "vermagic": "4.14.357-perf SMP",
+                "signer": "Testing",
+                "signature_key_id": None,
+                "has_embedded_signature": True,
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=inconsistent):
+                with self.assertRaisesRegex(ValueError, "signer and key ID"):
+                    AUDIT.collect(root, SOURCE_SHA, "core", require_signed=True)
 
     def test_unsigned_module_marks_runtime_load_blocker(self):
         with tempfile.TemporaryDirectory() as name:
