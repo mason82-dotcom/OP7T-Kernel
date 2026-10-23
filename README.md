@@ -79,6 +79,10 @@ Once the original `wlan.ko` has been extracted from the **exact installed ROM**,
 
 The script compares module name, complete `vermagic`, signer, signature key ID and hash algorithm. A mismatch is a blocker; matching values still **do not prove kernel key trust, ABI compatibility, device bootability or NetHunter readiness**. It never writes to or modifies the phone.
 
+## Offline original boot image header audit
+
+For an **original** `boot.img` from the exact installed `hotdog` ROM, run `python3 scripts/audit-bootimg.py /path/to/original-boot.img`. Optionally add `--expect-sha256 <known_hash>` to verify its original fingerprint. The script checks the AOSP boot header v2, 4096-byte pages, raw ARM64 kernel, required ramdisk and embedded FDT/DTB, section offsets and truncation. It emits JSON **only to stdout**, never extracts/patches/flashes. It does not verify AVB, DTBO partition, installed-ROM provenance, runtime module keys or hardware bootability; `flash_ready` remains false. Header layout is from [AOSP android17-release bootimg.h](https://android.googlesource.com/platform/system/tools/mkbootimg/+/refs/heads/android17-release/include/bootimg/bootimg.h).
+
 ## Mandatory release gates
 
 The **original** ROM boot image, active slot, original module signatures and firmware, boot header and DTB/DTBO must be validated from the actual installed build. Kernel module signatures matter: baseline `CONFIG_MODULE_SIG_FORCE=y` while OPlus enables `CONFIG_QCA_CLD_WLAN=m`. Do **not** disable module security enforcement to make an image appear compatible.
