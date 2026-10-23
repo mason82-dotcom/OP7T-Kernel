@@ -45,6 +45,10 @@ Only the exact installed build's original boot/DTBO and vendor modules can serve
 
 The generated `artifact-report.json` records the Image header, source SHA, DTBs, module hashes, vermagic, signer identity, signature key ID and algorithm. It verifies **build-internal** module release consistency and requires the Qualcomm WLAN module. The optional `Module.symvers` and `System.map` are retained for detailed local investigation. **Even signed modules may fail to load** if the certificate is not trusted by the exact running kernel. A successful audit is a raw-build check, not a flash certification. `flash_ready` is always `false`.
 
+## Read-only original ROM module comparison
+
+With the exact installed ROM's original `wlan.ko` available locally, run `scripts/compare-rom-modules.py` with `--built` and `--rom` paths. Compare `vermagic` and signer/key identifiers; mismatches are blockers, matching values are **not approval**. The script neither extracts the installed ROM nor writes to the device. Check the *actual* trusted module certificates and symbol ABI separately before image packaging.
+
 ## Required tests before any real flash
 
 1. Compile and compare `baseline`, `core` and (optionally) `external` on an isolated builder; inspect all failures.

@@ -57,6 +57,16 @@ The USB HID ConfigFS functionality is **already enabled** in the pinned kernel. 
 
 The official NetHunter kernel registry distinguishes `HID-4`, `BT_RFCOMM`, `QCACLD`, `ATH9K_HTC` and `Injection` features. Enabling Kconfig symbols **alone** does not justify advertising these as working. See [feature validation and driver research](docs/NETHUNTER_FEATURES.md).
 
+## Offline WLAN module comparison (read-only)
+
+Once the original `wlan.ko` has been extracted from the **exact installed ROM**, compare it with the rebuilt module:
+
+    python3 scripts/compare-rom-modules.py \
+      --built .work/artifacts/baseline/modules/drivers/staging/qcacld-3.0/wlan.ko \
+      --rom /path/to/extracted-exact-rom/wlan.ko
+
+The script compares module name, complete `vermagic`, signer, signature key ID and hash algorithm. A mismatch is a blocker; matching values still **do not prove kernel key trust, ABI compatibility, device bootability or NetHunter readiness**. It never writes to or modifies the phone.
+
 ## Mandatory release gates
 
 The **original** ROM boot image, active slot, original module signatures and firmware, boot header and DTB/DTBO must be validated from the actual installed build. Kernel module signatures matter: baseline `CONFIG_MODULE_SIG_FORCE=y` while OPlus enables `CONFIG_QCA_CLD_WLAN=m`. Do **not** disable module security enforcement to make an image appear compatible.
