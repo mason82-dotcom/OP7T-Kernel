@@ -71,7 +71,7 @@ def module_metadata(path, relative):
     }
 
 
-def collect(root, expected_sha, profile):
+def collect(root, expected_sha, profile, require_signed=False):
     image = root / "Image"
     if not image.is_file():
         raise ValueError("Missing raw arm64 Image")
@@ -122,6 +122,10 @@ def collect(root, expected_sha, profile):
         raise ValueError("CONFIG_QCA_CLD_WLAN=m but no built Qualcomm WLAN module found")
     unsigned = [m["path"] for m in module_details if not m["has_embedded_signature"]]
     signature_load_blocked = cfg["CONFIG_MODULE_SIG_FORCE"] == "y" and bool(unsigned)
+    if require_signed and unsigned:
+        raise ValueError(f"Unsigned staged kernel modules despite required signatures: {unsigned[:10]}")
+    if require_signed and not any(m["signer"] and m.get("signature_key_id") for m in wlan):
+        raise ValueError("Signed Qualcomm WLAN module with signer and key ID is required")
     return {
         "schema": "op7t-kernel-artifact-report-v1",
         "device": "hotdog",
@@ -167,12 +171,15 @@ def main():
     parser.add_argument("artifact_dir", type=Path)
     parser.add_argument("--expected-sha", required=True)
     parser.add_argument("--profile", choices=("baseline", "core", "external"), required=True)
+    parser.add_argument("--require-signed", action="store_true",
+                        help="Fail if any staged module is unsigned or Qualcomm WLAN lacks signing key ID")
     args = parser.parse_args()
     try:
         if not SHA.fullmatch(args.expected_sha):
             raise ValueError("Expected upstream SHA must contain exactly 40 lowercase hex digits")
         artifact_dir = args.artifact_dir.resolve(strict=True)
-        report = collect(artifact_dir, args.expected_sha, args.profile)
+        report = collect(artifact_dir, args.expected_sha, args.profile,
+                         require_signed=args.require_signed)
         output = artifact_dir / "artifact-report.json"
         output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print(f"Raw artifact audit: {report['module_count']} modules, {report['signed_module_count']} signed, {report['dtb_count']} DTBs")

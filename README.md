@@ -53,7 +53,11 @@ On build failure, GitHub Actions uploads only the last 2,500 lines of a build lo
 
 ## Critical module signing blocker
 
-The green baseline build produced `wlan.ko` but reported **0 signed modules (out of 2)** while enforcing `CONFIG_MODULE_SIG_FORCE=y`. Such unsigned `.ko` files cannot be loaded by a kernel enforcing module signatures; a successful CI compilation does not resolve this. The artifact audit now records `module_signature_load_blocked=true` and module paths. Kernel signing must be resolved against the actual installed ROM's trusted certificates and vendor modules, **without disabling enforcement or publishing signing secrets**. These outputs are not for flashing.
+The earlier baseline generated **2 unsigned modules** because `make modules` was followed by raw copying: in this Linux 4.14 tree, automatic module signatures are applied at **`make modules_install`**. This experimental follow-up now stages that installation under `.work/module-stage-<profile>` and requires a generated signing key and signed `wlan.ko`. The matching kernel image is necessary for its generated certificate to be trusted; **this still does not certify the installed ROM**, its other vendor modules or any boot image. The artifact audit now records `module_signature_load_blocked=true` and module paths. Kernel signing must be resolved against the actual installed ROM's trusted certificates and vendor modules, **without disabling enforcement or publishing signing secrets**. These outputs are not for flashing.
+
+### Secure module staging
+
+`scripts/build.sh` now requires `CONFIG_MODULE_SIG_ALL=y`, stages modules through Kbuild's `modules_install` into a temporary directory, and copies **only staged modules** into `artifacts/<profile>/modules`. The public build-certificate SHA-256 is recorded in `signing-cert.sha256`; generated private key `certs/signing_key.pem` stays exclusively in ignored `.work/out-<profile>`, never in CI-uploaded artifacts. The artifact audit runs in `--require-signed` mode and rejects unsigned modules or WLAN modules without a signing key ID. Signing success must be proven by CI.
 
 ## NetHunter feature assessment
 

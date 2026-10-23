@@ -8,3 +8,5 @@ CONFIG_USB_SERIAL=y
 CONFIG_USB_SERIAL_GENERIC=y
 CONFIG_BT_RFCOMM=y
 CONFIG_BT_RFCOMM_TTY=y
+# Sign staged modules using the build's own trusted key; no bypass of MODULE_SIG_FORCE.
+CONFIG_MODULE_SIG_ALL=y
