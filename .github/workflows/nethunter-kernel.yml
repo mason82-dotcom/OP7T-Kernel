@@ -42,6 +42,12 @@ jobs:
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        # PRs compile NetHunter profiles; manual runs can select baseline.
+        profile: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.profile) || '["core","external"]') }}
+    name: Build ${{ matrix.profile }} (experimental)
     steps:
       - uses: actions/checkout@v4
       - name: Install experimental Clang 14 toolchain
@@ -60,42 +66,48 @@ jobs:
           OBJDUMP: llvm-objdump-14
           STRIP: llvm-strip-14
           JOBS: 2
-          PROFILE: ${{ inputs.profile || 'baseline' }}
+          PROFILE: ${{ matrix.profile }}
         run: |
           mkdir -p .work/ci
           set -o pipefail
-          {
-            CONFIG_ONLY=1 bash scripts/build.sh core
-            CONFIG_ONLY=1 bash scripts/build.sh external
-            bash scripts/build.sh "$PROFILE"
-          } 2>&1 | tee .work/ci/build.log
+          bash scripts/build.sh "$PROFILE" 2>&1 | tee ".work/ci/build-${PROFILE}.log"
       - name: Prepare restricted failure diagnostics
         if: failure()
         shell: bash
         run: |
           mkdir -p .work/ci-diagnostics
-          for profile in core external baseline; do
-            if test -s ".work/out-$profile/.config"; then
-              cp ".work/out-$profile/.config" ".work/ci-diagnostics/$profile.config"
-            fi
-          done
-          if test -s .work/ci/build.log; then
-            tail -n 2500 .work/ci/build.log > .work/ci-diagnostics/build-log-tail.txt
+          if test -s ".work/out-${{ matrix.profile }}/.config"; then
+            cp ".work/out-${{ matrix.profile }}/.config" ".work/ci-diagnostics/${{ matrix.profile }}.config"
+          fi
+          if test -s ".work/ci/build-${{ matrix.profile }}.log"; then
+            tail -n 2500 ".work/ci/build-${{ matrix.profile }}.log" > .work/ci-diagnostics/build-log-tail.txt
           fi
           printf '%s\n' 'Unverified failed build; no binaries are flashable.' > .work/ci-diagnostics/README.txt
       - name: Upload restricted failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: hotdog-failed-build-${{ github.run_id }}
+          name: hotdog-failed-build-${{ matrix.profile }}-${{ github.run_id }}
           path: .work/ci-diagnostics/
           if-no-files-found: warn
           retention-days: 3
-      - name: Upload raw kernel and modules
+      - name: Upload bounded build attestation
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: hotdog-unverified-${{ inputs.profile || 'baseline' }}-${{ github.sha }}
-          path: .work/artifacts/${{ inputs.profile || 'baseline' }}/
+          name: hotdog-report-${{ matrix.profile }}-${{ github.run_id }}
+          path: |
+            .work/artifacts/${{ matrix.profile }}/artifact-report.json
+            .work/artifacts/${{ matrix.profile }}/kernel.config
+            .work/artifacts/${{ matrix.profile }}/kernel.release
+            .work/artifacts/${{ matrix.profile }}/upstream-commit.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload raw kernel and modules (manual only)
+        if: success() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-unverified-${{ matrix.profile }}-${{ github.sha }}
+          path: .work/artifacts/${{ matrix.profile }}/
           if-no-files-found: error
           retention-days: 7

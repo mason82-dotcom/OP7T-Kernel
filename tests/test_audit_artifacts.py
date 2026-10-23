@@ -43,9 +43,28 @@ class AuditTests(unittest.TestCase):
                 report = AUDIT.collect(root, SOURCE_SHA, "baseline")
             self.assertFalse(report["flash_ready"])
             self.assertFalse(report["rom_module_key_trust_verified"])
+            self.assertFalse(report["module_signature_load_blocked"])
             self.assertEqual(1, report["module_count"])
             self.assertEqual(1, report["dtb_count"])
             self.assertEqual("RAW_ARTIFACT_ONLY_UNVERIFIED", report["status"])
+
+    def test_unsigned_module_marks_runtime_load_blocker(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            unsigned = {
+                "path": "modules/wlan.ko",
+                "vermagic": "4.14.357-perf SMP",
+                "signer": None,
+                "has_embedded_signature": False,
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=unsigned):
+                report = AUDIT.collect(root, SOURCE_SHA, "baseline")
+            self.assertTrue(report["module_signature_enforcement"])
+            self.assertTrue(report["module_signature_load_blocked"])
+            self.assertEqual(["modules/wlan.ko"], report["unsigned_modules"])
+            self.assertEqual("blocked_unsigned_modules", report["module_runtime_compatibility"])
+            self.assertFalse(report["flash_ready"])
 
     def test_corrupt_image_fails_closed(self):
         with tempfile.TemporaryDirectory() as name:

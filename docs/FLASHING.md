@@ -29,6 +29,10 @@ Only proceed later if device is `hotdog` and Android is 17; do not use this for 
 
 Any packaging must preserve the **exact** installed ROM's boot image metadata, DTB/DTBO and ramdisk. Android 17 does not imply a modern GKI vendor_boot layout for this 2019-launched device.
 
+## Confirmed baseline limitation
+
+In GitHub Actions run [39975157488](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/39975157488), the original baseline compiled, but the artifact audit saw **2 kernel modules and 0 module signatures**. The build can succeed while `wlan.ko` remains unusable under `CONFIG_MODULE_SIG_FORCE=y`. Treat unsigned modules as a runtime load blocker. The updated `artifact-report.json` sets `module_signature_load_blocked` whenever unsigned modules coexist with enforced signatures. Do not disable module signature enforcement as a workaround.
+
 ## Major blocker: kernel modules
 
 The vendor overlay sets `CONFIG_QCA_CLD_WLAN=m`; the base defconfig sets `CONFIG_MODULE_SIG_FORCE=y`. Existing ROM `wlan.ko` or `vendor_dlkm` modules can refuse to load after a rebuilt kernel due to signatures, vermagic or ABI. Do not disable signature enforcement just to bypass this check. A verified compatible and correctly signed module deployment plan is a separate release requirement.
