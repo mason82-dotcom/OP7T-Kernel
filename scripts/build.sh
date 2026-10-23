@@ -20,6 +20,25 @@ CROSS64="${CROSS_COMPILE:-aarch64-linux-gnu-}"
 CROSS32="${CROSS_COMPILE_ARM32:-arm-linux-gnueabi-}"
 JOBS="${JOBS:-2}"
 
+# Old Qualcomm Kbuild invokes LLVM utilities by their UNSUFFIXED names
+# (llvm-nm / llvm-ar), even if command-line NM/AR are version-suffixed.
+# Resolve tools from the SAME LLVM installation as the selected clang.
+# Ubuntu clang-14 installs these under /usr/lib/llvm-14/bin.
+if [[ -n "${LLVM_TOOLCHAIN_BIN:-}" ]]; then
+  [[ -d "$LLVM_TOOLCHAIN_BIN" ]] || { echo "LLVM_TOOLCHAIN_BIN directory missing" >&2; exit 2; }
+  export PATH="$LLVM_TOOLCHAIN_BIN:$PATH"
+elif [[ "$CC_BIN" =~ ^clang-([0-9]+)$ ]]; then
+  llvm_dir="/usr/lib/llvm-${BASH_REMATCH[1]}/bin"
+  if [[ -d "$llvm_dir" ]]; then export PATH="$llvm_dir:$PATH"; fi
+fi
+for unsuffixed in llvm-nm llvm-ar llvm-objcopy llvm-objdump llvm-strip; do
+  command -v "$unsuffixed" >/dev/null || {
+    echo "Kbuild requires $unsuffixed on PATH (set LLVM_TOOLCHAIN_BIN)" >&2
+    exit 2
+  }
+done
+echo "LLVM utility path: $(command -v llvm-nm)"
+
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo "Linux x86_64 build host required" >&2; exit 2; }
 for command_name in make git python3 sha256sum "$CC_BIN" "$LD_BIN" "$AR_BIN" "$NM_BIN" "$OBJCOPY_BIN" "$OBJDUMP_BIN" "$STRIP_BIN"; do
   command -v "$command_name" >/dev/null || { echo "Missing build tool: $command_name" >&2; exit 2; }
