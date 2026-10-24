@@ -87,14 +87,15 @@ def inspect(path):
                 raise IntakeError("Invalid reported module path")
             safe_name(original)
             basename = PurePosixPath(original).name
-            if basename in digests:
-                if (module.get("sha256") != digests[basename] or
-                        sums.get(original) != digests[basename] or
+            exported_name = original if original in digests else basename
+            if exported_name in digests:
+                if (module.get("sha256") != digests[exported_name] or
+                        sums.get(original) != digests[exported_name] or
                         module.get("size_bytes") != next(i.file_size for i in members
-                                                          if i.filename == basename)):
+                                                          if i.filename == exported_name)):
                     raise IntakeError("Reported module digest or size mismatch")
-                module_results.append({"reported_path": original, "zip_member": basename,
-                                       "sha256": digests[basename]})
+                module_results.append({"reported_path": original, "zip_member": exported_name,
+                                       "sha256": digests[exported_name]})
         if len({m["zip_member"] for m in module_results}) != len(module_results):
             raise IntakeError("Ambiguous module basenames")
         if any(n.endswith(".ko") and n not in {m["zip_member"] for m in module_results}
