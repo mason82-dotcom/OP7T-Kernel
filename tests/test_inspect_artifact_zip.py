@@ -17,7 +17,7 @@ def digest(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
-def make_zip(path, *, tamper=False, duplicate=False, unsafe=False):
+def make_zip(path, *, tamper=False, duplicate=False, unsafe=False, full=False):
     module = b"synthetic module, never loaded"
     reported_path = "modules/drivers/wlan.ko"
     report = json.dumps({
@@ -34,7 +34,9 @@ def make_zip(path, *, tamper=False, duplicate=False, unsafe=False):
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("artifact-report.json", report)
         archive.writestr("SHA256SUMS", "\n".join(checksum_lines) + "\n")
-        archive.writestr("wlan.ko", b"tampered" if tamper else module)
+        archive.writestr(reported_path if full else "wlan.ko", b"tampered" if tamper else module)
+        if full:
+            archive.writestr("Image", b"missing")
         if duplicate:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)
@@ -53,6 +55,16 @@ class IntakeTests(unittest.TestCase):
             self.assertEqual(["Image"], result["missing_manifest_members"])
             self.assertEqual("wlan.ko", result["verified_modules"][0]["zip_member"])
             self.assertFalse(result["flash_ready"])
+
+    def test_complete_actions_export_preserves_module_path(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "package.zip"
+            make_zip(path, full=True)
+            result = INTAKE.inspect(path)
+            self.assertEqual("complete_verified_members", result["status"])
+            self.assertEqual([], result["missing_manifest_members"])
+            self.assertEqual("modules/drivers/wlan.ko",
+                             result["verified_modules"][0]["zip_member"])
 
     def test_tampered_module_is_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
