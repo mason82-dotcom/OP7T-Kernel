@@ -112,6 +112,10 @@ The script compares module name, complete `vermagic`, signer, signature key ID a
 
 For an **original** `boot.img` from the exact installed `hotdog` ROM, run `python3 scripts/audit-bootimg.py /path/to/original-boot.img`. Optionally add `--expect-sha256 <known_hash>` to verify its original fingerprint. The script checks the AOSP boot header v2, 4096-byte pages, raw ARM64 kernel, required ramdisk and embedded FDT/DTB, section offsets and truncation. It emits JSON **only to stdout**, never extracts/patches/flashes. It does not verify AVB, DTBO partition, installed-ROM provenance, runtime module keys or hardware bootability; `flash_ready` remains false. Header layout is from [AOSP android17-release bootimg.h](https://android.googlesource.com/platform/system/tools/mkbootimg/+/refs/heads/android17-release/include/bootimg/bootimg.h).
 
+## Alternative Android 17 kernel: LineageOS 24.0
+
+[LineageOS 24.0 pinned source comparison](docs/LINEAGE24_REFERENCE.md) evaluates the separate `lineage-24.0` SM8150 kernel without changing `config/upstream.lock`. A new read-only offline comparator checks both pinned Git source trees, Kconfig *requests* and Makefile/version-suffix differences. Notable: LineageOS uses `EXTRAVERSION=-openela` and its OPlus fragment explicitly requests `# CONFIG_MODULE_SIG is not set`; **do not port that signing change** into the crDroid build. No ROM trust, module ABI, verified kernel `.config`, boot compatibility or flash approval is implied.
+
 ## Mandatory release gates
 
 The **original** ROM boot image, active slot, original module signatures and firmware, boot header and DTB/DTBO must be validated from the actual installed build. Kernel module signatures matter: baseline `CONFIG_MODULE_SIG_FORCE=y` while OPlus enables `CONFIG_QCA_CLD_WLAN=m`. Do **not** disable module security enforcement to make an image appear compatible.

@@ -1,0 +1,30 @@
+{
+  "schema": "op7t-kernel-reference-comparison-v1",
+  "target": "OnePlus 7T Pro (hotdog)",
+  "android_major": 17,
+  "primary": {
+    "name": "crDroid 13",
+    "repository": "crdroidandroid/android_kernel_oneplus_sm8150",
+    "branch": "17.0",
+    "sha": "1083c6c5906114c71b11a429898b111a1b1b8109",
+    "device_tree": {
+      "repository": "crdroidandroid/android_device_oneplus_sm8150-common",
+      "branch": "17.0",
+      "sha": "1f6a319626dce8e5abb0a1fd9ae8f13fbd52dbbc"
+    }
+  },
+  "alternative": {
+    "name": "LineageOS 24.0",
+    "repository": "LineageOS/android_kernel_oneplus_sm8150",
+    "branch": "lineage-24.0",
+    "sha": "9f007fac27dce21d29d8230753b71d5634b8a00e",
+    "device_tree": {
+      "repository": "LineageOS/android_device_oneplus_sm8150-common",
+      "branch": "lineage-24.0",
+      "sha": "dfcd122453f748e6ff09b016208802f5c9c3b937"
+    }
+  },
+  "comparison_scope": "pinned-local-source-makefile-defconfig-oplus-overlay-only",
+  "build_and_device_compatibility_certified": false,
+  "flash_ready": false
+}
