@@ -3,7 +3,7 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/config/upstream.lock"
 PROFILE="${1:-baseline}"
-case "$PROFILE" in baseline|core|external) ;; *) echo "Usage: $0 {baseline|core|external}" >&2; exit 2 ;; esac
+case "$PROFILE" in baseline|core|external|kernelsu) ;; *) echo "Usage: $0 {baseline|core|external|kernelsu}" >&2; exit 2 ;; esac
 KERNEL="$ROOT/.work/kernel"
 OUT="$ROOT/.work/out-$PROFILE"
 ART="$ROOT/.work/artifacts/$PROFILE"
@@ -44,6 +44,11 @@ for command_name in make git python3 sha256sum readelf "$CC_BIN" "$LD_BIN" "$AR_
   command -v "$command_name" >/dev/null || { echo "Missing build tool: $command_name" >&2; exit 2; }
 done
 bash "$ROOT/scripts/fetch-source.sh"
+if [[ "$PROFILE" == kernelsu ]]; then
+  KERNEL="$(bash "$ROOT/scripts/prepare-kernelsu-next.sh")"
+fi
+DEF="$KERNEL/arch/arm64/configs/vendor/sm8150-perf_defconfig"
+OPLUS="$KERNEL/arch/arm64/configs/vendor/oplus.config"
 test -s "$DEF" && test -s "$OPLUS"
 rm -rf "$OUT" "$ART"
 mkdir -p "$OUT" "$ART"
@@ -63,6 +68,7 @@ make -C "$KERNEL" "${KARGS[@]}" vendor/sm8150-perf_defconfig
 FRAGMENTS=()
 if [[ "$PROFILE" != baseline ]]; then FRAGMENTS+=("$ROOT/config/nethunter-core.fragment"); fi
 if [[ "$PROFILE" == external ]]; then FRAGMENTS+=("$ROOT/config/nethunter-external.fragment"); fi
+if [[ "$PROFILE" == kernelsu ]]; then FRAGMENTS+=("$ROOT/config/kernelsu-next.fragment"); fi
 
 # Device BoardConfigCommon.mk specifies base config followed by vendor/oplus.config.
 (
@@ -73,6 +79,9 @@ make -C "$KERNEL" "${KARGS[@]}" olddefconfig
 VERIFY=(--config "$OUT/.config")
 for fragment in "${FRAGMENTS[@]}"; do VERIFY+=(--fragment "$fragment"); done
 python3 "$ROOT/scripts/verify-config.py" "${VERIFY[@]}"
+if [[ "$PROFILE" == kernelsu ]]; then
+  git -C "$ROOT/.work/kernelsu-next" rev-parse HEAD > "$ART/kernelsu-next-commit.txt"
+fi
 
 # Fast configuration-only acceptance path; never emits an Image, DTBs or modules.
 case "${CONFIG_ONLY:-0}" in
