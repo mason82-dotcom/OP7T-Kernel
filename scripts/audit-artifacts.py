@@ -10,6 +10,7 @@ from pathlib import Path
 
 ARM64_IMAGE_MAGIC = b"ARM\x64"
 SHA = re.compile(r"^[a-f0-9]{40}$")
+ELF_SECTION_NAME = re.compile(r"^\s*\[\s*\d+\]\s+(\S+)\s+")
 CONFIG_KEYS = (
     "CONFIG_QCA_CLD_WLAN",
     "CONFIG_MODULE_SIG_FORCE",
@@ -43,6 +44,27 @@ def kernel_config_values(path):
     return {key: config.get(key, "not present") for key in CONFIG_KEYS}
 
 
+
+def module_debug_sections(path, relative):
+    """Read only ELF section headers of the final, signed module.
+
+    A readelf failure is a build gate failure: absence of debug symbols
+    must not be inferred from an unreadable or malformed ELF.
+    """
+    try:
+        proc = subprocess.run(
+            ["readelf", "-W", "-S", str(path)],
+            check=True, capture_output=True, text=True, timeout=15,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise ValueError(f"Cannot inspect ELF sections for {relative}: {exc}") from exc
+    names = [match.group(1) for line in proc.stdout.splitlines()
+             if (match := ELF_SECTION_NAME.match(line))]
+    if not names:
+        raise ValueError(f"No ELF section headers parsed for {relative}")
+    return sorted({name for name in names
+                   if name == ".debug" or name.startswith((".debug_", ".zdebug_"))})
+
 def module_metadata(path, relative):
     def field(name):
         try:
@@ -67,11 +89,12 @@ def module_metadata(path, relative):
         "signature_key_id": field("sig_key") or None,
         "signature_hash_algorithm": field("sig_hashalgo") or None,
         "has_embedded_signature": bool(signer),
+        "debug_sections": module_debug_sections(path, relative),
         # Presence of signature != ROM key trust: no trust claims here.
     }
 
 
-def collect(root, expected_sha, profile, require_signed=False):
+def collect(root, expected_sha, profile, require_signed=False, require_stripped=False):
     image = root / "Image"
     if not image.is_file():
         raise ValueError("Missing raw arm64 Image")
@@ -126,6 +149,13 @@ def collect(root, expected_sha, profile, require_signed=False):
         raise ValueError(f"Unsigned staged kernel modules despite required signatures: {unsigned[:10]}")
     if require_signed and not any(m["signer"] and m.get("signature_key_id") for m in wlan):
         raise ValueError("Signed Qualcomm WLAN module with signer and key ID is required")
+    # Fail closed if the final staged signed ELF was not inspected.
+    # Debug sections must be removed by Kbuild BEFORE signature creation.
+    if require_stripped and any("debug_sections" not in m for m in module_details):
+        raise ValueError("Cannot verify stripped ELF sections in staged modules")
+    unstripped = [m["path"] for m in module_details if m.get("debug_sections")]
+    if require_stripped and unstripped:
+        raise ValueError(f"Debug sections remain in signed staged modules: {unstripped[:10]}")
     return {
         "schema": "op7t-kernel-artifact-report-v1",
         "device": "hotdog",
@@ -140,6 +170,9 @@ def collect(root, expected_sha, profile, require_signed=False):
         "dtbs": [{"path": str(p.relative_to(root)), "sha256": sha256_file(p)} for p in dtbs],
         "module_count": len(modules),
         "signed_module_count": sum(m["has_embedded_signature"] for m in module_details),
+        "module_strip_debug_required": require_stripped,
+        "module_debug_sections_verified": require_stripped and not unstripped,
+        "modules_with_debug_sections": unstripped,
         "unsigned_modules": unsigned,
         "module_signature_enforcement": cfg["CONFIG_MODULE_SIG_FORCE"] == "y",
         "module_signature_load_blocked": signature_load_blocked,
@@ -173,13 +206,15 @@ def main():
     parser.add_argument("--profile", choices=("baseline", "core", "external"), required=True)
     parser.add_argument("--require-signed", action="store_true",
                         help="Fail if any staged module is unsigned or Qualcomm WLAN lacks signing key ID")
+    parser.add_argument("--require-stripped", action="store_true",
+                        help="Fail if final staged modules have ELF debug sections or inspection is unavailable")
     args = parser.parse_args()
     try:
         if not SHA.fullmatch(args.expected_sha):
             raise ValueError("Expected upstream SHA must contain exactly 40 lowercase hex digits")
         artifact_dir = args.artifact_dir.resolve(strict=True)
         report = collect(artifact_dir, args.expected_sha, args.profile,
-                         require_signed=args.require_signed)
+                         require_signed=args.require_signed, require_stripped=args.require_stripped)
         output = artifact_dir / "artifact-report.json"
         output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print(f"Raw artifact audit: {report['module_count']} modules, {report['signed_module_count']} signed, {report['dtb_count']} DTBs")
