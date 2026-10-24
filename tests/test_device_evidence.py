@@ -15,7 +15,10 @@ PROPS = {
     "ro.product.device": "hotdog",
     "ro.build.version.release": "17",
     "ro.build.fingerprint": "crdroid/hotdog/test",
-    "ro.crdroid.version": "13.0",
+    "ro.crdroid.version": "17.0",
+    "ro.crdroid.build.version": "13.0",
+    "ro.crdroid.display.version": "v13.0-20261021",
+    "ro.system.build.fingerprint": "crdroid/hotdog/hotdog:17/test",
     "ro.boot.slot_suffix": "_b",
     "ro.vendor.build.fingerprint": "oneplus/vendor/test",
     "ro.build.version.security_patch": "2026-10-01",
@@ -57,6 +60,10 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(report["flash_ready"])
         self.assertEqual("a" * 64, report["wlan"]["visible_wlan_modules"][0]["sha256"])
         self.assertEqual("_b", report["device"]["active_slot"])
+        self.assertEqual("17.0", report["device"]["crdroid_version"])
+        self.assertEqual("13.0", report["device"]["crdroid_build_version"])
+        self.assertEqual("android_platform_version", report["crdroid_version_property_meaning"])
+        self.assertFalse(any("crDroid" in w for w in report["warnings"]))
         self.assertIn("-r", [x for call in run.call_args_list for x in call.args[0]])
 
     @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
@@ -64,6 +71,20 @@ class EvidenceTests(unittest.TestCase):
         MODULE.collect("device-123:5555")
         self.assertTrue(all(call.args[0][1:3] == ["-s", "device-123:5555"]
                             for call in run.call_args_list))
+
+    @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
+    def test_missing_crdroid_release_emits_warning_not_approval(self, run):
+        with patch.dict(PROPS, {"ro.crdroid.build.version": ""}):
+            report = MODULE.collect()
+        self.assertTrue(any("not confirmed as v13" in w for w in report["warnings"]))
+        self.assertFalse(report["flash_ready"])
+
+    @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
+    def test_stock_android_12_fingerprint_is_not_exact_rom_proof(self, run):
+        with patch.dict(PROPS, {"ro.build.fingerprint": "OnePlus/OnePlus7TPro:12/stock-release"}):
+            report = MODULE.collect()
+        self.assertTrue(any("Android 12 OEM" in w for w in report["warnings"]))
+        self.assertFalse(report["rom_fingerprint_is_authoritative_rom_proof"])
 
     def test_rejects_serial_shell_metacharacters(self):
         with self.assertRaisesRegex(MODULE.DeviceEvidenceError, "serial"):

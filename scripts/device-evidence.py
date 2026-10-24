@@ -20,7 +20,11 @@ PROPERTIES = {
     "device": "ro.product.device",
     "android_release": "ro.build.version.release",
     "rom_fingerprint": "ro.build.fingerprint",
+    # This property is Android platform 17.0, NOT the crDroid v13 release.
     "crdroid_version": "ro.crdroid.version",
+    "crdroid_build_version": "ro.crdroid.build.version",
+    "crdroid_display_version": "ro.crdroid.display.version",
+    "system_fingerprint": "ro.system.build.fingerprint",
     "active_slot": "ro.boot.slot_suffix",
     "vendor_fingerprint": "ro.vendor.build.fingerprint",
     "security_patch": "ro.build.version.security_patch",
@@ -140,8 +144,12 @@ def collect(serial=None):
     if not re.fullmatch(r"[A-Za-z0-9._+\-]{1,128}", kernel_release):
         raise DeviceEvidenceError("Unexpected kernel release")
     wlan, warnings = parse_wlan_probe(adb(["shell", REMOTE_WLAN_PROBE], serial))
-    if not actual["crdroid_version"].startswith("13"):
-        warnings.append("crDroid v13 property unavailable or inconsistent; verify in device settings")
+    if not actual["crdroid_version"].startswith("17"):
+        warnings.append("crDroid Android platform property is not 17.x; verify exact ROM")
+    if not actual["crdroid_build_version"].startswith("13"):
+        warnings.append("crDroid build.version not confirmed as v13; verify exact ROM")
+    if ":12/" in actual["rom_fingerprint"]:
+        warnings.append("ro.build.fingerprint carries Android 12 OEM identity; NOT exact installed Android 17 ROM provenance")
     if actual["active_slot"] not in ("_a", "_b"):
         warnings.append("Active A/B slot not verified")
     if not wlan["visible_wlan_modules"]:
@@ -151,6 +159,9 @@ def collect(serial=None):
         "target_device": "hotdog",
         "device_property_is_oem_alias": actual["device"] == "OnePlus7TPro",
         "device": actual,
+        "crdroid_version_property_meaning": "android_platform_version",
+        "crdroid_release_property": "ro.crdroid.build.version",
+        "rom_fingerprint_is_authoritative_rom_proof": False,
         "kernel_release": kernel_release,
         "wlan": wlan,
         "warnings": warnings,

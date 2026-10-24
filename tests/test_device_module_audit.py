@@ -25,7 +25,9 @@ case "$1" in
           ro.build.version.release) echo "$MOCK_ANDROID" ;;
           ro.build.fingerprint) echo crdroid/test/fingerprint ;;
           ro.boot.slot_suffix) echo _a ;;
-          ro.crdroid.version) echo 13.0 ;;
+          ro.crdroid.version) echo 17.0 ;;
+          ro.crdroid.build.version) echo 13.0 ;;
+          ro.crdroid.display.version) echo v13.0-20261021 ;;
           ro.vendor.build.fingerprint) echo vendor/test/fingerprint ;;
           ro.build.version.security_patch) echo 2026-10-01 ;;
           ro.vendor.build.security_patch) echo 2026-10-01 ;;
@@ -61,6 +63,8 @@ esac
         r = self.probe(arguments=("--serial", "TESTDEVICE123"))
         self.assertEqual(0, r.returncode, r.stderr)
         self.assertIn("Kernel release:", r.stdout)
+        self.assertIn("crDroid release: 13.0", r.stdout)
+        self.assertIn("Platform tag:    17.0", r.stdout)
 
     def test_oem_device_alias_accepted(self):
         r = self.probe(device="OnePlus7TPro")
