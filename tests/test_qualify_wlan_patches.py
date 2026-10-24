@@ -60,8 +60,11 @@ class CandidateGateTests(unittest.TestCase):
                              "rxstat = netif_rx_ni(skb);\n}\n#endif\n"),
                 "lithium_rx": ("if (vdev_id < 0)\n"
                                "cdp_get_mon_vdev_from_pdev(soc, id);\n"),
-                "dp": ("if (qdf_unlikely(!pdev))\n"
-                       "return pdev->monitor_vdev->vdev_id;\n"),
+                "dp": ("static uint8_t dp_get_mon_vdev_from_pdev_wifi3(void *soc)\n"
+                       "{\nif (qdf_unlikely(!pdev))\n"
+                       "return pdev->monitor_vdev->vdev_id;\n}\n"
+                       "static int dp_other(void *soc)\n"
+                       "{\nif (qdf_unlikely(!pdev))\nreturn -EINVAL;\n}\n"),
             }
             for label, value in sample.items():
                 path = root / GATE.SOURCE[label]
@@ -82,7 +85,9 @@ class CandidateGateTests(unittest.TestCase):
                 "profile": "CONFIG_FEATURE_MONITOR_MODE_SUPPORT := y\n",
                 "icnss_rx": "static QDF_STATUS hdd_mon_rx_packet_cbk(void *p) {}\n",
                 "lithium_rx": "if (vdev_id < 0)\ncdp_get_mon_vdev_from_pdev(soc, id);\n",
-                "dp": "if (qdf_unlikely(!pdev))\nreturn pdev->monitor_vdev->vdev_id;\n",
+                "dp": ("static uint8_t dp_get_mon_vdev_from_pdev_wifi3(void *soc)\n"
+                       "{\nif (qdf_unlikely(!pdev))\n"
+                       "return pdev->monitor_vdev->vdev_id;\n}\n"),
             }
             for label, value in contents.items():
                 path = root / GATE.SOURCE[label]
@@ -91,6 +96,29 @@ class CandidateGateTests(unittest.TestCase):
             result = GATE.inspect_source(root)
             self.assertFalse(result["eligible"])
             self.assertFalse(result["legacy_callback_anchor_matched"])
+
+    def test_mon_vdev_getter_missing_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            samples = {
+                "defconfig": "CONFIG_ICNSS=y\n",
+                "oplus": 'CONFIG_QCA_CLD_WLAN=m\nCONFIG_QCA_CLD_WLAN_PROFILE="default"\n',
+                "profile": "CONFIG_FEATURE_MONITOR_MODE_SUPPORT := y\n",
+                "icnss_rx": ("static QDF_STATUS hdd_mon_rx_packet_cbk(void *p)\n"
+                             "{\nrxstat = netif_rx(skb);\n"
+                             "rxstat = netif_rx_ni(skb);\n}\n#endif\n"),
+                "lithium_rx": ("if (vdev_id < 0)\n"
+                               "cdp_get_mon_vdev_from_pdev(soc, id);\n"),
+                "dp": ("static int dp_other(void)\n"
+                       "{\nif (qdf_unlikely(!pdev))\n"
+                       "return pdev->monitor_vdev->vdev_id;\n}\n"),
+            }
+            for label, content in samples.items():
+                path = root / GATE.SOURCE[label]
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            self.assertFalse(GATE.inspect_source(root)["vdev_safety_anchor_matched"])
+            self.assertFalse(GATE.inspect_source(root)["eligible"])
 
     def test_build_keeps_wlan_patches_disabled(self):
         text = (ROOT / "scripts/build.sh").read_text(encoding="utf-8")
