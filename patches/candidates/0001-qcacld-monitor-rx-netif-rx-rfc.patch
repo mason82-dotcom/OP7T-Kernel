@@ -1,0 +1,21 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [RFC PATCH] qcacld-3.0: monitor RX use netif_rx for final SKB
+
+Research candidate ONLY for crDroid 17.0 source SHA
+1083c6c5906114c71b11a429898b111a1b1b8109.
+Do not apply without verifying monitor callback context and chip firmware.
+
+diff --git a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c
+--- a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c
++++ b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c
+@@ -78,9 +78,9 @@ void hdd_rx_monitor_callback(ol_osif_vdev_handle context,
+ 		if (skb->next) {
+ 			rxstat = netif_rx(skb);
+ 		} else {
+ 			/*
+ 			 * This is the last packet on the chain
+ 			 * Scheduling rx sirq
+ 			 */
+-			rxstat = netif_rx_ni(skb);
++			rxstat = netif_rx(skb);
+ 		}
