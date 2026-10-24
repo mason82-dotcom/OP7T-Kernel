@@ -47,6 +47,9 @@ bash "$ROOT/scripts/fetch-source.sh"
 test -s "$DEF" && test -s "$OPLUS"
 rm -rf "$OUT" "$ART"
 mkdir -p "$OUT" "$ART"
+# Evidence only. A matching upstream prebuilt name does NOT certify ROM binary parity.
+python3 "$ROOT/scripts/audit-toolchain.py" --clang "$CC_BIN" --ld "$LD_BIN" \
+  --output "$ART/toolchain-report.json"
 export ARCH=arm64 SUBARCH=arm64
 export KBUILD_BUILD_USER=op7t-kernel KBUILD_BUILD_HOST=buildhost
 export SOURCE_DATE_EPOCH="$(git -C "$KERNEL" show -s --format=%ct HEAD)"
