@@ -24,6 +24,12 @@ This repository is the **build and patch workspace** for the **OnePlus 7T Pro (`
 
 Internal QCACLD monitor/injection is **not implemented**. Older NetHunter Android-13 or LineageOS driver trees must not be copied wholesale. The external profile includes drivers, **not injection patches**; monitor/injection availability must be verified for specific adapters.
 
+## Official 17.0 Clang selection vs experimental host toolchain
+
+The pinned crDroid 17.0 source snapshot (vendor/lineage commit `9e09ebeb03fc3e744b679401b9655f780b6b0af4`) selects `aosp_target_release=cp2a` and AOSP prebuilt **`clang-r596125`** through `tools/get_clang_version.py`. `BoardConfigKernel.mk` defaults to `LLVM_AOSP_PREBUILTS_VERSION` and adds `LLVM=1 LLVM_IAS=1`. The device BoardConfigs inspected did not override `TARGET_KERNEL_CLANG_VERSION`. These are current **source-level defaults**, not proof of which binary built the October 21 hotdog OTA.
+
+Our CI currently uses **Clang 14**, an experimental host compiler, not the identified AOSP prebuilt. Each build now emits a bounded `toolchain-report.json` with compiler and linker versions, SHA-256 and whether their resolved paths have the expected AOSP layout. Even when the layout matches, `official_rom_build_toolchain_verified=false`, `installed_rom_abi_compatible_verified=false`, `flash_ready=false`. The report never includes host filesystem paths. To require *only the expected prebuilt path layout* (not actual ROM compatibility), use `python3 scripts/audit-toolchain.py --clang /path/to/clang --ld /path/to/ld.lld --require-reference-layout`. Review [config/toolchain-reference.json](config/toolchain-reference.json) before making any compiler or Kbuild flag changes.
+
 ## Build on Linux x86_64
 
     sudo apt-get install -y git make bc bison flex python3 build-essential \
