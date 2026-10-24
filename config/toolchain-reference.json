@@ -1,0 +1,21 @@
+{
+  "schema": "op7t-crdroid17-toolchain-reference-v1",
+  "device": "hotdog",
+  "android_version": 17,
+  "crdroid_version": 13,
+  "branch": "17.0",
+  "source_repository": "crdroidandroid/android_vendor_crdroid",
+  "source_commit": "9e09ebeb03fc3e744b679401b9655f780b6b0af4",
+  "selected_aosp_release": "cp2a",
+  "expected_prebuilt_directory": "clang-r596125",
+  "source_files": [
+    "vars/aosp_target_release",
+    "tools/get_clang_version.py",
+    "release/flag_values/cp2a/RELEASE_BUILD_CLANG_VERSION.textproto",
+    "build/envsetup.sh",
+    "config/BoardConfigKernel.mk"
+  ],
+  "original_20261021_ota_toolchain_verified": false,
+  "binary_checksum_from_official_build_verified": false,
+  "note": "This describes selection in a pinned upstream 17.0 source snapshot. Exact installed ROM compiler provenance and binary identity are not verified."
+}
