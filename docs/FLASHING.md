@@ -62,6 +62,10 @@ After checking a local OTA ZIP against the pinned reference via `scripts/verify-
 
 The second command reads only a bounded protobuf manifest at the start of `payload.bin`, returning the OTA's *listed* `boot`, `dtbo`, `vendor`, `vendor_dlkm` and VBMeta partitions. It does **not** extract or hash partitions, cryptographically verify the payload signature, prove the ZIP was installed, or change the phone. Delta/partial OTA payloads may omit unchanged partitions: absent names are inconclusive. `flash_ready` remains false.
 
+## Offline symbol CRC / ELF ABI investigation
+
+Use the conservative [offline ARM64 ELF ABI audit](MODULE_ABI_AUDIT.md) to compare rebuilt and original WLAN / GSPCA module `__versions` symbol CRCs and optional `Module.symvers`. Changes to module dependencies are explicitly reported. This tool makes **no** trust, ROM provenance, or flash readiness claims; a zero exit status does not authorize an image. Never use it to bypass required signatures or module-loader security.
+
 ## Read-only original ROM module comparison
 
 With the exact installed ROM's original `wlan.ko` available locally, run `scripts/compare-rom-modules.py` with `--built` and `--rom` paths. Compare `vermagic` and signer/key identifiers; mismatches are blockers, matching values are **not approval**. The script neither extracts the installed ROM nor writes to the device. Check the *actual* trusted module certificates and symbol ABI separately before image packaging.
