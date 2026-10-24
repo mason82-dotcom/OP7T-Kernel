@@ -189,37 +189,11 @@ done < <(find "$OUT/arch/arm64/boot/dts" -type f -name '*.dtb' -print0)
 
 python3 "$ROOT/scripts/audit-artifacts.py" "$ART" --expected-sha "$UPSTREAM_SHA" --profile "$PROFILE" --require-signed --require-stripped
 
-# Preserve an explicit provenance marker, never a flashable status.
+# Compiler attestation must find all three changed translation units and
+# the signed/stripped audited wlan.ko; never claim codegen merely from Image.
 if [[ "${WLAN_PATCH_EXPERIMENT:-0}" == 1 ]]; then
-  python3 - "$ROOT" "$ART" "$UPSTREAM_SHA" <<'PY'
-import hashlib
-import json
-import sys
-from pathlib import Path
-root, art, sha = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
-names = [
-    "patches/qcacld-3.0/0001-monitor-vdev-null-and-error-guards.patch",
-    "patches/candidates/0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch",
-]
-report = {
-    "schema": "hotdog-wlan-experimental-compile-v1",
-    "upstream_sha": sha,
-    "patches": [
-        {"path": p, "sha256": hashlib.sha256((root / p).read_bytes()).hexdigest()}
-        for p in names
-    ],
-    "patches_compiled_with_pinned_kernel": True,
-    "signer_trust_on_installed_rom_verified": False,
-    "installed_rom_module_abi_verified": False,
-    "wifi_hardware_tested": False,
-    "monitor_mode_runtime_verified": False,
-    "packet_injection_verified": False,
-    "flash_ready": False,
-}
-(art / "wlan-patch-experiment.json").write_text(
-    json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-)
-PY
+  python3 "$ROOT/scripts/audit-wlan-compile.py" \
+    --out "$OUT" --artifacts "$ART" --expected-sha "$UPSTREAM_SHA"
 fi
 (
   cd "$ART"

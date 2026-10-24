@@ -29,7 +29,8 @@ class WlanIsolatedBuildTests(unittest.TestCase):
         self.assertIn('ART="$ROOT/.work/artifacts/wlan-$PROFILE"', BUILD)
         self.assertIn('STAGE="$ROOT/.work/module-stage-wlan-$PROFILE"', BUILD)
         self.assertIn('wlan-patch-experiment.json', BUILD)
-        self.assertIn('"flash_ready": False', BUILD)
+        self.assertIn('python3 "$ROOT/scripts/audit-wlan-compile.py"', BUILD)
+        self.assertIn('"flash_ready": False', (ROOT / "scripts/audit-wlan-compile.py").read_text(encoding="utf-8"))
         self.assertIn('"signer_trust_on_installed_rom_verified": False', BUILD)
 
     def test_signed_stripped_module_audit_unchanged(self):
