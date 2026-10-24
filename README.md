@@ -69,6 +69,18 @@ The USB HID ConfigFS functionality is **already enabled** in the pinned kernel. 
 
 The official NetHunter kernel registry distinguishes `HID-4`, `BT_RFCOMM`, `QCACLD`, `ATH9K_HTC` and `Injection` features. Enabling Kconfig symbols **alone** does not justify advertising these as working. See [feature validation and driver research](docs/NETHUNTER_FEATURES.md).
 
+## Windows / Linux / macOS device evidence (Python)
+
+On Windows PowerShell (Python 3 and Android Platform Tools/ADB on PATH), from the repository root:
+
+    py -3 scripts/device-evidence.py --output hotdog-device-evidence.json
+
+On Linux / Raspberry Pi:
+
+    python3 scripts/device-evidence.py --output hotdog-device-evidence.json
+
+Use `--serial YOUR_ADB_SERIAL` only with multiple ADB devices. The command rejects non-`hotdog` or non-Android-17 devices, collects build/vendor fingerprints, slot, security patches, kernel release and ADB-readable Qualcomm WLAN paths and hashes. It makes **read-only ADB calls** without root or Bash and saves a local report once (never overwrites it). Missing WLAN paths are inconclusive. Share the JSON only if comfortable sharing ROM/device metadata; it does not include a signing key, private modules or a device serial. The report always sets `flash_ready=false` and cannot determine trusted certificates or symbol ABI.
+
 ## Offline WLAN module comparison (read-only)
 
 Once the original `wlan.ko` has been extracted from the **exact installed ROM**, compare it with the rebuilt module:

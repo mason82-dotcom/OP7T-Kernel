@@ -69,6 +69,14 @@ The script validates the **v2 structure only**: ARM64 Image magic, embedded FDT 
 
 After USB debugging has been authorized on the **OnePlus 7T Pro hotdog**, run `bash scripts/device-module-audit.sh` from a machine with Android Platform Tools. The command repeats `scripts/device-audit.sh` and prints the ROM and vendor fingerprints, Android security patch, verified-boot state and ADB-readable module paths. If `wlan.ko` is readable, the device calculates its SHA-256 without uploading the original binary or writing to the phone. Nonstandard or inaccessible paths are recorded as **unknown**, not absence. It cannot obtain the private signing key, verify ABI or imply boot compatibility.
 
+## Windows PowerShell read-only audit (without Bash)
+
+The new `scripts/device-evidence.py` uses Python 3 and `adb` (Android Platform Tools) directly, so it avoids CRLF problems from executing Bash scripts on Windows. To collect non-secret ROM/module metadata locally:
+
+    py -3 scripts/device-evidence.py --output hotdog-device-evidence.json
+
+The file is ignored by Git and will **not** be overwritten. No ADB root, file pull/push, or flashing occurs. Missing/inaccessible WLAN modules are not evidence of absence. Kernel-signing key trust, verified original boot images, vendor module symbol ABI and device hardware acceptance remain open.
+
 ## Required tests before any real flash
 
 1. Compile and compare `baseline`, `core` and (optionally) `external` on an isolated builder; inspect all failures.
