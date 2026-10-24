@@ -49,6 +49,50 @@ jobs:
       - name: Check both optional WLAN patches on original source
         run: python3 scripts/qualify-wlan-patches.py --kernel .work/kernel
 
+  wlan-isolated-compile:
+    # Gated to this review branch; normal kernel PR builds are unmodified.
+    if: github.event_name == 'pull_request' && github.head_ref == 'feature/hotdog-wlan-compile-experiment'
+    needs: [lint, wlan-patch-qualification]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install experimental Clang 14 tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex make build-essential git python3 \
+            libelf-dev libssl-dev binutils kmod clang-14 lld-14 llvm-14 \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+      - name: Build isolated experimental patched kernel and signed WLAN module
+        env:
+          CC: clang-14
+          LD: ld.lld-14
+          AR: llvm-ar-14
+          NM: llvm-nm-14
+          OBJCOPY: llvm-objcopy-14
+          OBJDUMP: llvm-objdump-14
+          STRIP: llvm-strip-14
+          JOBS: 2
+          WLAN_PATCH_EXPERIMENT: '1'
+        run: |
+          mkdir -p .work/ci
+          set -o pipefail
+          bash scripts/build.sh core 2>&1 | tee .work/ci/wlan-core-compile.log
+      - name: Upload bounded experimental WLAN build evidence (no binaries)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-wlan-rfc-attestation-${{ github.run_id }}
+          path: |
+            .work/artifacts/wlan-core/artifact-report.json
+            .work/artifacts/wlan-core/kernel.config
+            .work/artifacts/wlan-core/kernel.release
+            .work/artifacts/wlan-core/upstream-commit.txt
+            .work/artifacts/wlan-core/toolchain-report.json
+            .work/artifacts/wlan-core/wlan-patch-experiment.json
+          if-no-files-found: error
+          retention-days: 7
+
   build:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     needs: lint

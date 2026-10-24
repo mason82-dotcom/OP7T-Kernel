@@ -44,6 +44,55 @@ for command_name in make git python3 sha256sum readelf "$CC_BIN" "$LD_BIN" "$AR_
   command -v "$command_name" >/dev/null || { echo "Missing build tool: $command_name" >&2; exit 2; }
 done
 bash "$ROOT/scripts/fetch-source.sh"
+
+# Explicit review-only WLAN experiment. The original pinned checkout remains
+# clean and untouched; changes live exclusively in a disposable linked worktree.
+case "${WLAN_PATCH_EXPERIMENT:-0}" in
+  0) ;;
+  1)
+    echo "WLAN PATCHED COMPILE IS EXPERIMENTAL. NEVER FLASH."
+    python3 "$ROOT/scripts/qualify-wlan-patches.py" --kernel "$KERNEL" > /dev/null
+    EXP_TREE="$ROOT/.work/kernel-wlan-rfc-$PROFILE"
+    [[ ! -e "$EXP_TREE" ]] || {
+      echo "Experimental worktree exists; refusing to overwrite it" >&2
+      exit 2
+    }
+    ORIGINAL_KERNEL="$KERNEL"
+    git -C "$ORIGINAL_KERNEL" worktree add --detach "$EXP_TREE" "$UPSTREAM_SHA"
+    cleanup_wlan_worktree() {
+      code=$?
+      trap - EXIT
+      git -C "$ORIGINAL_KERNEL" worktree remove --force "$EXP_TREE" || code=1
+      exit "$code"
+    }
+    trap cleanup_wlan_worktree EXIT
+    git -C "$EXP_TREE" apply \
+      "$ROOT/patches/qcacld-3.0/0001-monitor-vdev-null-and-error-guards.patch" \
+      "$ROOT/patches/candidates/0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch"
+    git -C "$EXP_TREE" diff --check
+    expected_paths="$(printf '%s\n' \
+      'drivers/staging/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c' \
+      'drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c' \
+      'drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.c')"
+    actual_paths="$(git -C "$EXP_TREE" diff --name-only)"
+    [[ "$actual_paths" == "$expected_paths" ]] || {
+      echo "WLAN worktree contains unapproved changed paths" >&2
+      exit 2
+    }
+    [[ "$(git -C "$EXP_TREE" rev-parse HEAD)" == "$UPSTREAM_SHA" ]] || exit 2
+    [[ -z "$(git -C "$ORIGINAL_KERNEL" status --porcelain)" ]] || exit 2
+    KERNEL="$EXP_TREE"
+    OUT="$ROOT/.work/out-wlan-$PROFILE"
+    ART="$ROOT/.work/artifacts/wlan-$PROFILE"
+    DEF="$KERNEL/arch/arm64/configs/vendor/sm8150-perf_defconfig"
+    OPLUS="$KERNEL/arch/arm64/configs/vendor/oplus.config"
+    ;;
+  *)
+    echo "WLAN_PATCH_EXPERIMENT only accepts 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
 test -s "$DEF" && test -s "$OPLUS"
 rm -rf "$OUT" "$ART"
 mkdir -p "$OUT" "$ART"
@@ -109,6 +158,9 @@ if ! grep -qx 'CONFIG_MODULE_SIG_ALL=y' "$OUT/.config" ||
   exit 1
 fi
 STAGE="$ROOT/.work/module-stage-$PROFILE"
+if [[ "${WLAN_PATCH_EXPERIMENT:-0}" == 1 ]]; then
+  STAGE="$ROOT/.work/module-stage-wlan-$PROFILE"
+fi
 rm -rf -- "$STAGE"
 mkdir -p "$STAGE"
 # Kbuild order in scripts/Makefile.modinst: copy -> strip-debug -> sign.
@@ -136,6 +188,13 @@ while IFS= read -r -d '' dtb; do
 done < <(find "$OUT/arch/arm64/boot/dts" -type f -name '*.dtb' -print0)
 
 python3 "$ROOT/scripts/audit-artifacts.py" "$ART" --expected-sha "$UPSTREAM_SHA" --profile "$PROFILE" --require-signed --require-stripped
+
+# Compiler attestation must find all three changed translation units and
+# the signed/stripped audited wlan.ko; never claim codegen merely from Image.
+if [[ "${WLAN_PATCH_EXPERIMENT:-0}" == 1 ]]; then
+  python3 "$ROOT/scripts/audit-wlan-compile.py" \
+    --out "$OUT" --artifacts "$ART" --expected-sha "$UPSTREAM_SHA"
+fi
 (
   cd "$ART"
   find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 -r sha256sum > SHA256SUMS
