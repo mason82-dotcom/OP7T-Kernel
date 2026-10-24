@@ -38,6 +38,7 @@ class AuditTests(unittest.TestCase):
                 "vermagic": "4.14.357-perf SMP",
                 "signer": "testing-only",
                 "signature_key_id": "AA:BB",
+                "signature_hash_algorithm": "sha512",
                 "has_embedded_signature": True,
             }
             with patch.object(AUDIT, "module_metadata", return_value=fake):
@@ -58,6 +59,7 @@ class AuditTests(unittest.TestCase):
                 "vermagic": "4.14.357-perf SMP",
                 "signer": "Ephemeral kernel build cert",
                 "signature_key_id": "AA:BB",
+                "signature_hash_algorithm": "sha512",
                 "has_embedded_signature": True,
             }
             with patch.object(AUDIT, "module_metadata", return_value=signed):
@@ -123,6 +125,7 @@ class AuditTests(unittest.TestCase):
                 "vermagic": "4.14.357-perf SMP",
                 "signer": "Ephemeral build key",
                 "signature_key_id": "AA:BB",
+                "signature_hash_algorithm": "sha512",
                 "has_embedded_signature": True,
                 "debug_sections": [],
             }
@@ -135,6 +138,76 @@ class AuditTests(unittest.TestCase):
             self.assertFalse(report["rom_module_key_trust_verified"])
             self.assertFalse(report["flash_ready"])
 
+    def test_stage_modules_with_same_signing_identity_are_consistent(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            (root / "modules" / "gspca_main.ko").write_bytes(b"mocked")
+            def details(path, relative):
+                return {
+                    "path": relative, "vermagic": "4.14.357-perf SMP",
+                    "signer": "Ephemeral build cert", "signature_key_id": "AA:BB",
+                    "signature_hash_algorithm": "sha512",
+                    "has_embedded_signature": True, "debug_sections": [],
+                }
+            with patch.object(AUDIT, "module_metadata", side_effect=details):
+                report = AUDIT.collect(root, SOURCE_SHA, "external",
+                                       require_signed=True, require_stripped=True)
+            self.assertTrue(report["staged_module_signing_identity_consistent"])
+            self.assertEqual(1, report["staged_module_signing_identity_distinct_count"])
+            self.assertFalse(report["flash_ready"])
+
+    def test_stage_rejects_mixed_signing_keys_even_when_both_signed(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            (root / "modules" / "gspca_main.ko").write_bytes(b"mocked")
+            def details(path, relative):
+                return {
+                    "path": relative, "vermagic": "4.14.357-perf SMP",
+                    "signer": "Same friendly name",
+                    "signature_key_id": "AA:BB" if relative.endswith("wlan.ko") else "CC:DD",
+                    "signature_hash_algorithm": "sha512",
+                    "has_embedded_signature": True, "debug_sections": [],
+                }
+            with patch.object(AUDIT, "module_metadata", side_effect=details):
+                with self.assertRaisesRegex(ValueError, "Mixed module signing identities"):
+                    AUDIT.collect(root, SOURCE_SHA, "external",
+                                  require_signed=True, require_stripped=True)
+
+    def test_stage_rejects_missing_signature_hash_metadata(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            incomplete = {
+                "path": "modules/wlan.ko", "vermagic": "4.14.357-perf SMP",
+                "signer": "Ephemeral build cert", "signature_key_id": "AA:BB",
+                "has_embedded_signature": True, "debug_sections": [],
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=incomplete):
+                with self.assertRaisesRegex(ValueError, "lack signer/key ID/hash"):
+                    AUDIT.collect(root, SOURCE_SHA, "core",
+                                  require_signed=True, require_stripped=True)
+
+    def test_relaxed_audit_reports_mixed_key_uncertainty_without_approving_flash(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            (root / "modules" / "gspca_main.ko").write_bytes(b"mocked")
+            def details(path, relative):
+                return {
+                    "path": relative, "vermagic": "4.14.357-perf SMP",
+                    "signer": "Ephemeral",
+                    "signature_key_id": "AA:BB" if relative.endswith("wlan.ko") else "CC:DD",
+                    "signature_hash_algorithm": "sha512",
+                    "has_embedded_signature": True, "debug_sections": [],
+                }
+            with patch.object(AUDIT, "module_metadata", side_effect=details):
+                report = AUDIT.collect(root, SOURCE_SHA, "baseline")
+            self.assertFalse(report["staged_module_signing_identity_consistent"])
+            self.assertEqual(2, report["staged_module_signing_identity_distinct_count"])
+            self.assertFalse(report["flash_ready"])
+
     def test_final_signed_module_with_debug_sections_fails(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
@@ -144,6 +217,7 @@ class AuditTests(unittest.TestCase):
                 "vermagic": "4.14.357-perf SMP",
                 "signer": "Ephemeral build key",
                 "signature_key_id": "AA:BB",
+                "signature_hash_algorithm": "sha512",
                 "has_embedded_signature": True,
                 "debug_sections": [".debug_info"],
             }
@@ -161,6 +235,7 @@ class AuditTests(unittest.TestCase):
                 "vermagic": "4.14.357-perf SMP",
                 "signer": "Ephemeral build key",
                 "signature_key_id": "AA:BB",
+                "signature_hash_algorithm": "sha512",
                 "has_embedded_signature": True,
             }
             with patch.object(AUDIT, "module_metadata", return_value=signed_uninspected):
