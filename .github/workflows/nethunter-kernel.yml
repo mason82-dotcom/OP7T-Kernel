@@ -54,7 +54,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison flex make build-essential git python3 \
-            libelf-dev libssl-dev kmod clang-14 lld-14 llvm-14 \
+            libelf-dev libssl-dev binutils kmod clang-14 lld-14 llvm-14 \
             gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
       - name: Build pinned kernel (not a boot image)
         env:
