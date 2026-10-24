@@ -34,7 +34,11 @@ The final config must contain `CONFIG_KSU=y`, `CONFIG_KSU_KPROBES_HOOK=y` and
 `kernelsu-next-commit.txt` and the artifact report. This is a build experiment,
 not proof that kprobes work on this handset. The newer `legacy` Kconfig warns
 against its tracepoint+kretprobe mode below Linux 5.10, so updating the pin
-needs a separate source and runtime review. No SUSFS patch is included.
+needs a separate source and runtime review. The pinned source also needs the
+small `patches/kernelsu-next-seccomp-4.14.patch`: this kernel's `struct seccomp`
+has no `filter_count` member. The patch is applied only to a separate
+KernelSU-Next worktree and deletes that invalid field access. No SUSFS patch
+is included.
 
 Internal QCACLD monitor/injection is **not implemented**. Older NetHunter Android-13 or LineageOS driver trees must not be copied wholesale. The external profile includes drivers, **not injection patches**; monitor/injection availability must be verified for specific adapters.
 
