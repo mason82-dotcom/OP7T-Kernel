@@ -1,0 +1,28 @@
+diff --git a/drivers/staging/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c b/drivers/staging/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c
+--- a/drivers/staging/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c
++++ b/drivers/staging/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c
+@@ -6952,7 +6952,7 @@
+ 	struct dp_soc *soc = cdp_soc_t_to_dp_soc(soc_hdl);
+ 	struct dp_pdev *pdev = dp_get_pdev_from_soc_pdev_id_wifi3(soc, pdev_id);
+ 
+-	if (qdf_unlikely(!pdev))
++	if (qdf_unlikely(!pdev || !pdev->monitor_vdev))
+ 		return -EINVAL;
+ 
+ 	return pdev->monitor_vdev->vdev_id;
+diff --git a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c
+--- a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c
++++ b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c
+@@ -125,8 +125,11 @@
+ 
+ 	hdd_enter_dev(dev);
+ 
++	if (!soc)
++		return -ENODEV;
++
+ 	vdev_id = cdp_get_mon_vdev_from_pdev(soc, OL_TXRX_PDEV_ID);
+-	if (vdev_id < 0)
++	if (vdev_id == (uint8_t)-EINVAL)
+ 		return -EINVAL;
+ 
+ 	return cdp_set_monitor_mode(soc, vdev_id, false);

@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [RFC PATCH] qcacld-3.0: use regular netif_rx for hotdog ICNSS monitor callback
+
+Experimental, OFF by default; source 1083c6c5906114c71b11a429898b111a1b1b8109.
+This changes no TX path and does not prove actual RX callback context.
+
+diff --git a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.c b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.c
+--- a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.c
++++ b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.c
+@@ -1445,10 +1445,10 @@ static QDF_STATUS hdd_mon_rx_packet_cbk(void *context, qdf_nbuf_t rxbuf)
+ 			rxstat = netif_rx(skb);
+ 		} else {
+ 			/*
+ 			 * This is the last packet on the chain
+-			 * Scheduling rx sirq
++			 * Same backlog path; avoid _ni BH handling
+ 			 */
+-			rxstat = netif_rx_ni(skb);
++			rxstat = netif_rx(skb);
+ 		}
+ 
+ 		if (NET_RX_SUCCESS == rxstat)
