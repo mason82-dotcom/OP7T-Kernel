@@ -1,0 +1,53 @@
+name: QCACLD3 upstream patch preflight (read-only)
+
+on:
+  pull_request:
+    paths:
+      - "config/qcacld3-injection-candidate.json"
+      - "scripts/qcacld3-patch-preflight.py"
+      - "tests/test_qcacld3_patch_preflight.py"
+      - "docs/QCACLD3_PATCH_RESEARCH.md"
+      - ".github/workflows/qcacld3-patch-preflight.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: qcacld-preflight-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  patch-preflight:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify offline patch preflight tests
+        run: python3 -m unittest discover -s tests -p 'test_qcacld3_patch_preflight.py' -v
+      - name: Fetch pinned unmodified crDroid source
+        run: bash scripts/fetch-source.sh
+      - name: Download immutable upstream commit diff as data only
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p .work/qcacld3
+          curl --fail --location --silent --show-error \
+            --proto '=https' --proto-redir '=https' \
+            --max-filesize 12582912 --max-time 120 \
+            'https://github.com/V0lk3n/nethunter_kernel_oneplus_sm8150/commit/2ea326d095d723b62c896160a1810f0c95bcc5bb.patch' \
+            --output .work/qcacld3/commit.patch
+      - name: Check driver-only context; DO NOT APPLY
+        run: |
+          python3 scripts/qcacld3-patch-preflight.py \
+            --patch .work/qcacld3/commit.patch \
+            --kernel .work/kernel \
+            --output .work/qcacld3/preflight-report.json
+      - name: Upload bounded research evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-qcacld3-patch-preflight-${{ github.run_id }}
+          path: .work/qcacld3/preflight-report.json
+          if-no-files-found: warn
+          retention-days: 7
