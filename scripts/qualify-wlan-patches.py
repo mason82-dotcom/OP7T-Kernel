@@ -88,9 +88,17 @@ def inspect_source(root):
     rx = callback.group(0) if callback else ""
     rx_ok = (bool(callback) and rx.count("rxstat = netif_rx(skb);") == 1 and
              rx.count("rxstat = netif_rx_ni(skb);") == 1)
+    # Other DP functions legitimately have the same generic !pdev guard.
+    # Inspect only the monitor getter, and reject zero/ambiguous definitions.
+    mon_vdev_defs = re.findall(
+        r"^static uint8_t dp_get_mon_vdev_from_pdev_wifi3\(.*?^\}",
+        content["dp"], re.MULTILINE | re.DOTALL,
+    )
+    mon_vdev_body = mon_vdev_defs[0] if len(mon_vdev_defs) == 1 else ""
     safety_ok = (
-        content["dp"].count("if (qdf_unlikely(!pdev))") == 1 and
-        content["dp"].count("return pdev->monitor_vdev->vdev_id;") == 1 and
+        len(mon_vdev_defs) == 1 and
+        mon_vdev_body.count("if (qdf_unlikely(!pdev))") == 1 and
+        mon_vdev_body.count("return pdev->monitor_vdev->vdev_id;") == 1 and
         content["lithium_rx"].count("if (vdev_id < 0)") == 1 and
         content["lithium_rx"].count("cdp_get_mon_vdev_from_pdev(") == 1)
     return {
