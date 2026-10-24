@@ -121,6 +121,17 @@ def collect(root, expected_sha, profile, require_signed=False, require_stripped=
     commit = commit_path.read_text(encoding="utf-8").strip()
     if not SHA.fullmatch(commit) or commit != expected_sha:
         raise ValueError(f"Kernel source mismatch: {commit}")
+    ksu_commit = None
+    if profile == "kernelsu":
+        for name in ("CONFIG_KPROBES", "CONFIG_KSU", "CONFIG_KSU_KPROBES_HOOK"):
+            if cfg.get(name) != "y":
+                raise ValueError(f"{name} is required for KernelSU-Next")
+        ksu_path = root / "kernelsu-next-commit.txt"
+        if not ksu_path.is_file():
+            raise ValueError("Missing kernelsu-next-commit.txt")
+        ksu_commit = ksu_path.read_text(encoding="utf-8").strip()
+        if not SHA.fullmatch(ksu_commit):
+            raise ValueError("Invalid KernelSU-Next source SHA")
     dtbs = sorted((root / "dtbs").rglob("*.dtb"))
     modules = sorted((root / "modules").rglob("*.ko"))
     if not dtbs:
@@ -162,6 +173,7 @@ def collect(root, expected_sha, profile, require_signed=False, require_stripped=
         "rom": "crDroid 13 / Android 17",
         "profile": profile,
         "upstream_commit": commit,
+        "kernelsu_next_commit": ksu_commit,
         "kernel_release": release,
         "build_module_vermagic_match": True,
         "image": {"path": "Image", "size_bytes": image.stat().st_size, "sha256": sha256_file(image)},
@@ -203,7 +215,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("artifact_dir", type=Path)
     parser.add_argument("--expected-sha", required=True)
-    parser.add_argument("--profile", choices=("baseline", "core", "external"), required=True)
+    parser.add_argument("--profile", choices=("baseline", "core", "external", "kernelsu"), required=True)
     parser.add_argument("--require-signed", action="store_true",
                         help="Fail if any staged module is unsigned or Qualcomm WLAN lacks signing key ID")
     parser.add_argument("--require-stripped", action="store_true",
