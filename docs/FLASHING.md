@@ -68,6 +68,10 @@ After checking a local OTA ZIP against the pinned reference via `scripts/verify-
 
 The second command reads only a bounded protobuf manifest at the start of `payload.bin`, returning the OTA's *listed* `boot`, `dtbo`, `vendor`, `vendor_dlkm` and VBMeta partitions. It does **not** extract or hash partitions, cryptographically verify the payload signature, prove the ZIP was installed, or change the phone. Delta/partial OTA payloads may omit unchanged partitions: absent names are inconclusive. `flash_ready` remains false.
 
+## Offline ELF symbol CRC / module dependency audit
+
+The [ABI audit](MODULE_ABI_AUDIT.md) compares AArch64 `__versions` records from rebuilt modules with original modules and optionally `Module.symvers`. A changed `depends` field is flagged for review. Original modules must be traced to the exact installed ROM. A zero exit code, matching `vermagic`, and a present signature trailer **cannot** validate cryptographic key trust, complete ABI, or device bootability. Use `--fail-on-unknown` to reject incomplete evidence. Never relax module enforcement or AVB to suppress a mismatch.
+
 ## Read-only original ROM module comparison
 
 With the exact installed ROM's original `wlan.ko` available locally, run `scripts/compare-rom-modules.py` with `--built` and `--rom` paths. Compare `vermagic` and signer/key identifiers; mismatches are blockers, matching values are **not approval**. The script neither extracts the installed ROM nor writes to the device. Check the *actual* trusted module certificates and symbol ABI separately before image packaging.

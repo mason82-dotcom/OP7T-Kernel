@@ -4,6 +4,8 @@ This repository is the **build and patch workspace** for the **OnePlus 7T Pro (`
 
 **Status: experimental source scaffolding. NOT FLASHABLE.** No boot image, tested NetHunter injection patch, correctly signed rebuilt vendor modules or validated hardware build has been produced.
 
+> Build reference: [crDroid 13 / Android 17 source and kernel alignment](docs/CRDROID_17_BUILD_REFERENCE.md). This repository remains a standalone, **not flashable**, kernel workspace.
+
 ## Verified basis
 
 - crDroid **v13.0 = Android 17**. **Android 13 was crDroid v9**, and using its old `13.0` AOSP branch here would be incorrect.
@@ -23,6 +25,10 @@ This repository is the **build and patch workspace** for the **OnePlus 7T Pro (`
 | `external` | Core + built-in ath9k_htc, carl9170, rtl8187, mt7601u, rt2800usb | experimental; adapter firmware and injection **not verified** |
 
 Internal QCACLD monitor/injection is **not implemented**. Older NetHunter Android-13 or LineageOS driver trees must not be copied wholesale. The external profile includes drivers, **not injection patches**; monitor/injection availability must be verified for specific adapters.
+
+## Official crDroid 17.0 toolchain selection vs experimental CI
+
+The pinned source snapshot of `crdroidandroid/android_vendor_crdroid` at commit `9e09ebeb03fc3e744b679401b9655f780b6b0af4` selects release `cp2a` and the AOSP prebuilt `clang-r596125`. The inspected OnePlus `hotdog` and `sm8150-common` configs do not override `TARGET_KERNEL_CLANG_VERSION`. Our GitHub Actions still use **experimental Clang 14**. We do **not** know which exact compiler built the original October 21 ROM. The build emits a bounded `toolchain-report.json` using [audit-toolchain.py](scripts/audit-toolchain.py), but a matching version or directory name can never prove bit-for-bit identity, ABI compatibility, or trusted signatures.
 
 ## Build on Linux x86_64
 
@@ -114,6 +120,10 @@ Once the original `wlan.ko` has been extracted from the **exact installed ROM**,
       --rom /path/to/extracted-exact-rom/wlan.ko
 
 The script compares module name, complete `vermagic`, signer, signature key ID and hash algorithm. A mismatch is a blocker; matching values still **do not prove kernel key trust, ABI compatibility, device bootability or NetHunter readiness**. It never writes to or modifies the phone.
+
+## Offline ARM64 module ABI triage
+
+[Read-only ABI audit](docs/MODULE_ABI_AUDIT.md) checks `__versions` symbol CRCs, `.modinfo`, dependencies and signature trailer presence in the built and exact-ROM `wlan.ko` / `qca_cld3_wlan.ko` and `gspca_main.ko`. Supplying `Module.symvers` improves coverage but does not prove ABI or signature trust. `--fail-on-unknown` distinguishes unresolved evidence from a passing comparison. Build outputs, signed or unsigned, remain **NOT FLASHABLE**.
 
 ## Offline original boot image header audit
 
