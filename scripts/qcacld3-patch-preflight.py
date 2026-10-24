@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "config/qcacld3-injection-candidate.json"
 MAX_PATCH = 12 * 1024 * 1024
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-PATH_RE = re.compile(r"^[a-zA-Z0-9_./+\\-]+$")
-HEADER_RE = re.compile(rb"^diff --git a/([^\\r\\n]+) b/([^\\r\\n]+)$", re.M)
+PATH_RE = re.compile(r"^[A-Za-z0-9_./+-]+$")
+HEADER_RE = re.compile(rb"^diff --git a/([^\r\n]+) b/([^\r\n]+)$", re.M)
 
 
 class PreflightError(ValueError):
