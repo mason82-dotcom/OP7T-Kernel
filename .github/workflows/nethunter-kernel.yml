@@ -102,6 +102,9 @@ jobs:
             .work/artifacts/${{ matrix.profile }}/kernel.release
             .work/artifacts/${{ matrix.profile }}/upstream-commit.txt
             .work/artifacts/${{ matrix.profile }}/toolchain-report.json
+            .work/artifacts/${{ matrix.profile }}/signing-cert.x509
+            .work/artifacts/${{ matrix.profile }}/signing-cert.sha256
+            .work/artifacts/${{ matrix.profile }}/build-module-cms.json
           if-no-files-found: error
           retention-days: 7
       - name: Upload raw kernel and modules (manual only)
