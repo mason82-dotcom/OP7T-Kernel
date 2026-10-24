@@ -8,7 +8,7 @@ Do not apply without verifying monitor callback context and chip firmware.
 diff --git a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c
 --- a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c
 +++ b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c
-@@ -78,12 +78,12 @@ void hdd_rx_monitor_callback(ol_osif_vdev_handle context,
+@@ -78,9 +78,9 @@ void hdd_rx_monitor_callback(ol_osif_vdev_handle context,
  		if (skb->next) {
  			rxstat = netif_rx(skb);
  		} else {
