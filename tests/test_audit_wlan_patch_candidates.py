@@ -1,4 +1,5 @@
 import importlib.util
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,11 +18,97 @@ class WlanPatchCandidateTests(unittest.TestCase):
         self.write("configs/default_defconfig", "CONFIG_FEATURE_MONITOR_MODE_SUPPORT := y\n")
         self.write("Kbuild", "HDD_OBJS += wlan_hdd_rx_monitor.o\nCONFIG_LITHIUM\nCONFIG_WLAN_FEATURE_PKT_CAPTURE\n")
         self.write("core/hdd/src/wlan_hdd_rx_monitor.c", "rxstat = netif_rx(skb);\nrxstat = netif_rx_ni(skb);\n")
+        self.write("core/hdd/src/wlan_hdd_tx_rx.c",
+                   "static QDF_STATUS hdd_mon_rx_packet_cbk(void *context, qdf_nbuf_t rxbuf)\n"
+                   "{\n"
+                   "\trxstat = netif_rx(skb);\n"
+                   "\trxstat = netif_rx_ni(skb);\n"
+                   "}\n#endif\n")
+        self.write_extra("arch/arm64/configs/vendor/sm8150-perf_defconfig",
+                         "CONFIG_ICNSS=y\n")
+        self.write_extra("arch/arm64/configs/vendor/oplus.config",
+                         'CONFIG_QCA_CLD_WLAN=m\nCONFIG_QCA_CLD_WLAN_PROFILE="default"\n')
 
     def write(self, relative, value):
         p = self.src / AUDIT.BASE / relative
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(value, encoding="utf-8")
+
+    def write_extra(self, relative, value):
+        path = self.src / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value, encoding="utf-8")
+
+    def test_hotdog_icnss_callback_is_selected(self):
+        report = AUDIT.inspect_source(self.src)
+        self.assertTrue(report["hotdog_icnss_configured"])
+        self.assertTrue(report["hotdog_icnss_rx_rfc_anchor_matches"])
+        self.assertTrue(report["hotdog_patch_applicable_by_source"])
+        self.assertEqual(
+            "0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch",
+            report["selected_monitor_rx_candidate"],
+        )
+        self.assertFalse(report["flash_ready"])
+        self.assertFalse(report["patch_applied"])
+
+    def test_lithium_callback_does_not_prove_hotdog_rx_compatibility(self):
+        self.write("core/hdd/src/wlan_hdd_tx_rx.c",
+                   "static QDF_STATUS hdd_mon_rx_packet_cbk(void *x, qdf_nbuf_t y)\n"
+                   "{\nrxstat = netif_rx(skb);\n}\n#endif\n")
+        report = AUDIT.inspect_source(self.src)
+        self.assertTrue(report["rx_rfc_anchor_matches"])
+        self.assertFalse(report["hotdog_icnss_rx_rfc_anchor_matches"])
+        self.assertFalse(report["hotdog_patch_applicable_by_source"])
+
+    def test_non_icnss_source_cannot_claim_hotdog_patch(self):
+        self.write_extra("arch/arm64/configs/vendor/sm8150-perf_defconfig",
+                         "# CONFIG_ICNSS is not set\n")
+        report = AUDIT.inspect_source(self.src)
+        self.assertFalse(report["hotdog_icnss_configured"])
+        self.assertFalse(report["hotdog_patch_applicable_by_source"])
+        self.assertIsNone(report["selected_monitor_rx_candidate"])
+
+    def test_unsigned_or_unknown_qcacld_mode_not_assumed(self):
+        self.write_extra("arch/arm64/configs/vendor/oplus.config",
+                         'CONFIG_QCA_CLD_WLAN=y\nCONFIG_QCA_CLD_WLAN_PROFILE="default"\n')
+        report = AUDIT.inspect_source(self.src)
+        self.assertFalse(report["qcacld_is_module"])
+        self.assertFalse(report["hotdog_patch_applicable_by_source"])
+
+    def test_hotdog_candidate_patch_passes_git_apply_check_on_pinned_hunk(self):
+        candidate = (SCRIPT.parent.parent / "patches/candidates/"
+                     "0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch")
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            path = root / AUDIT.BASE / "core/hdd/src/wlan_hdd_tx_rx.c"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            source = ("\\n" * 1444).replace("\\n", "\n") + (
+                "\t\t\trxstat = netif_rx(skb);\n"
+                "\t\t} else {\n"
+                "\t\t\t/*\n"
+                "\t\t\t * This is the last packet on the chain\n"
+                "\t\t\t * Scheduling rx sirq\n"
+                "\t\t\t */\n"
+                "\t\t\trxstat = netif_rx_ni(skb);\n"
+                "\t\t}\n"
+                "\n"
+                "\t\tif (NET_RX_SUCCESS == rxstat)\n"
+            )
+            path.write_text(source, encoding="utf-8")
+            proc = subprocess.run(
+                ["git", "apply", "--check", str(candidate)], cwd=root,
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(0, proc.returncode, proc.stderr)
+
+    def test_candidate_patch_is_off_by_default_and_scoped(self):
+        patch = (SCRIPT.parent.parent / "patches/candidates/"
+                 "0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch").read_text()
+        self.assertIn("core/hdd/src/wlan_hdd_tx_rx.c", patch)
+        self.assertIn("-\t\t\trxstat = netif_rx_ni(skb);", patch)
+        self.assertIn("+\t\t\trxstat = netif_rx(skb);", patch)
+        self.assertNotIn("wlan_hdd_frame_inject.c", patch)
+        self.assertNotIn("fastboot", patch)
 
     def test_existing_monitor_flag_means_patch_is_redundant(self):
         result = AUDIT.inspect_source(self.src)
