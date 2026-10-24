@@ -28,10 +28,10 @@ class WlanIsolatedBuildTests(unittest.TestCase):
         self.assertIn('OUT="$ROOT/.work/out-wlan-$PROFILE"', BUILD)
         self.assertIn('ART="$ROOT/.work/artifacts/wlan-$PROFILE"', BUILD)
         self.assertIn('STAGE="$ROOT/.work/module-stage-wlan-$PROFILE"', BUILD)
-        self.assertIn('wlan-patch-experiment.json', BUILD)
+        self.assertIn('wlan-patch-experiment.json', (ROOT / "scripts/audit-wlan-compile.py").read_text(encoding="utf-8"))
         self.assertIn('python3 "$ROOT/scripts/audit-wlan-compile.py"', BUILD)
         self.assertIn('"flash_ready": False', (ROOT / "scripts/audit-wlan-compile.py").read_text(encoding="utf-8"))
-        self.assertIn('"signer_trust_on_installed_rom_verified": False', BUILD)
+        self.assertIn('"signer_trust_on_installed_rom_verified": False', (ROOT / "scripts/audit-wlan-compile.py").read_text(encoding="utf-8"))
 
     def test_signed_stripped_module_audit_unchanged(self):
         self.assertIn("INSTALL_MOD_STRIP=1", BUILD)
