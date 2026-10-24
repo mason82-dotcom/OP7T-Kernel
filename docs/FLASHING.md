@@ -69,6 +69,18 @@ The script validates the **v2 structure only**: ARM64 Image magic, embedded FDT 
 
 After USB debugging has been authorized on the **OnePlus 7T Pro hotdog**, run `bash scripts/device-module-audit.sh` from a machine with Android Platform Tools. The command repeats `scripts/device-audit.sh` and prints the ROM and vendor fingerprints, Android security patch, verified-boot state and ADB-readable module paths. If `wlan.ko` is readable, the device calculates its SHA-256 without uploading the original binary or writing to the phone. Nonstandard or inaccessible paths are recorded as **unknown**, not absence. It cannot obtain the private signing key, verify ABI or imply boot compatibility.
 
+## ROM identity property semantics (crDroid 17.0 branch)
+
+The crDroid `vendor/lineage/config/version.mk` declares `PRODUCT_VERSION_MAJOR=17` and `CR_VERSION=13.0`. Consequently `ro.crdroid.version=17.0` is the **Android platform version**, while `ro.crdroid.build.version=13.0` is the **crDroid release**. Earlier script warnings comparing `ro.crdroid.version` with `13` were false positives; both audit scripts now query the correct property. A stock Android-12 `ro.build.fingerprint` must not be assumed to identify the installed ROM image. Exact boot/DTBO, module certificate trust and ABI are still unresolved.
+
+## Windows PowerShell read-only audit (without Bash)
+
+The new `scripts/device-evidence.py` uses Python 3 and `adb` (Android Platform Tools) directly, so it avoids CRLF problems from executing Bash scripts on Windows. To collect non-secret ROM/module metadata locally:
+
+    py -3 scripts/device-evidence.py --output hotdog-device-evidence.json
+
+The file is ignored by Git and will **not** be overwritten. The device guard recognizes both `hotdog` and its stock/OEM `OnePlus7TPro` property alias, but NOT `hotdogg` / 5G McLaren. This is only an inventory guard, not a device identity or boot image certification. No ADB root, file pull/push, or flashing occurs. Missing/inaccessible WLAN modules are not evidence of absence. Kernel-signing key trust, verified original boot images, vendor module symbol ABI and device hardware acceptance remain open.
+
 ## Required tests before any real flash
 
 1. Compile and compare `baseline`, `core` and (optionally) `external` on an isolated builder; inspect all failures.

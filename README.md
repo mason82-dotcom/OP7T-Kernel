@@ -69,6 +69,18 @@ The USB HID ConfigFS functionality is **already enabled** in the pinned kernel. 
 
 The official NetHunter kernel registry distinguishes `HID-4`, `BT_RFCOMM`, `QCACLD`, `ATH9K_HTC` and `Injection` features. Enabling Kconfig symbols **alone** does not justify advertising these as working. See [feature validation and driver research](docs/NETHUNTER_FEATURES.md).
 
+## Windows / Linux / macOS device evidence (Python)
+
+On Windows PowerShell (Python 3 and Android Platform Tools/ADB on PATH), from the repository root:
+
+    py -3 scripts/device-evidence.py --output hotdog-device-evidence.json
+
+On Linux / Raspberry Pi:
+
+    python3 scripts/device-evidence.py --output hotdog-device-evidence.json
+
+**crDroid property mapping verified from [vendor/lineage/config/version.mk, branch 17.0](https://github.com/crdroidandroid/android_vendor_crdroid/blob/17.0/config/version.mk):** `ro.crdroid.version=17.0` is the Android platform tag; `ro.crdroid.build.version=13.0` is the actual crDroid release. The audit now records both plus the display build property. An Android-12 OnePlus fingerprint may reflect the required legacy firmware baseline or property masking, so it is **not** proof of the running crDroid image. Use `--serial YOUR_ADB_SERIAL` only with multiple ADB devices. The read-only guard accepts canonical `hotdog` and the OEM fingerprint alias `OnePlus7TPro` (both seen in the [LineageOS hotdog device specification](https://github.com/LineageOS/android_device_oneplus_hotdog/blob/lineage-23.2/lineage_hotdog.mk)); it still rejects `hotdogg`, `OnePlus7TProNR` and Android versions other than 17. Matching a device string alone does **not** establish exact hardware/ROM image compatibility. The script collects build/vendor fingerprints, slot, security patches, kernel release and ADB-readable Qualcomm WLAN paths and hashes. It makes **read-only ADB calls** without root or Bash and saves a local report once (never overwrites it). Missing WLAN paths are inconclusive. Share the JSON only if comfortable sharing ROM/device metadata; it does not include a signing key, private modules or a device serial. The report always sets `flash_ready=false` and cannot determine trusted certificates or symbol ABI.
+
 ## Offline WLAN module comparison (read-only)
 
 Once the original `wlan.ko` has been extracted from the **exact installed ROM**, compare it with the rebuilt module:

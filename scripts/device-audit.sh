@@ -15,16 +15,26 @@ device="$(getprop ro.product.device)"
 release="$(getprop ro.build.version.release)"
 fingerprint="$(getprop ro.build.fingerprint)"
 slot="$(getprop ro.boot.slot_suffix)"
-crdroid="$(getprop ro.crdroid.version)"
+platform="$(getprop ro.crdroid.version)"
+crdroid="$(getprop ro.crdroid.build.version)"
+crdroid_display="$(getprop ro.crdroid.display.version)"
 printf 'Device:          %s\n' "$device"
 printf 'Android release: %s\n' "$release"
-printf 'crDroid version: %s\n' "${crdroid:-<not exposed>}"
+printf 'crDroid release: %s\n' "${crdroid:-<not exposed>}"
+printf 'crDroid build:   %s\n' "${crdroid_display:-<not exposed>}"
+printf 'Platform tag:    %s\n' "${platform:-<not exposed>}"
 printf 'ROM fingerprint: %s\n' "$fingerprint"
 printf 'Active A/B slot: %s\n' "${slot:-<unknown>}"
 printf 'Kernel release:  %s\n' "$("${ADB[@]}" shell uname -r | tr -d '\r')"
-if [[ "$device" != hotdog ]]; then
+# crDroid/Lineage identifies the ROM target as hotdog, but its OEM fingerprint
+# can expose ro.product.device=OnePlus7TPro on the same physical device.
+# Never extend this alias to hotdogg / 5G McLaren variants.
+if [[ "$device" != hotdog && "$device" != OnePlus7TPro ]]; then
   echo "STOP: device is not the OnePlus 7T Pro hotdog (do not use for hotdogg)" >&2
   exit 3
+fi
+if [[ "$device" == OnePlus7TPro ]]; then
+  echo "OEM product device alias OnePlus7TPro recognized as hotdog (not hardware validation)."
 fi
 if [[ "$release" != 17 ]]; then
   echo "STOP: this project's source tree targets Android 17 / crDroid 13" >&2
