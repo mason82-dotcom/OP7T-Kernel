@@ -53,6 +53,17 @@ Only the exact installed build's original boot/DTBO and vendor modules can serve
 
 The generated `artifact-report.json` records the Image header, source SHA, DTBs, module hashes, vermagic, signer identity, signature key ID and algorithm. It verifies **build-internal** module release consistency and requires the Qualcomm WLAN module. The optional `Module.symvers` and `System.map` are retained for detailed local investigation. **Even signed modules may fail to load** if the certificate is not trusted by the exact running kernel. A successful audit is a raw-build check, not a flash certification. `flash_ready` is always `false`.
 
+## Offline ELF symbol CRC / ABI triage (read-only)
+
+The next hardware gate is **not another ADB scan**. Obtain the **original** `qca_cld3_wlan.ko` from a verified, matching `vendor_dlkm` ROM image via an offline extraction process (not by bypassing Android/SELinux). Then compare module-import symbol CRCs with a *matching* rebuilt `Module.symvers` and rebuilt `wlan.ko`:
+
+    python3 scripts/audit-module-abi.py \
+      --built .work/artifacts/core/modules/drivers/staging/qcacld-3.0/wlan.ko \
+      --rom /path/to/verified-rom/qca_cld3_wlan.ko \
+      --symvers .work/artifacts/core/Module.symvers
+
+The standard-library ELF64/AArch64 reader analyzes `.modinfo`, `__versions`, the module signature **trailer presence only**, SHA-256 and imported-symbol CRCs; it neither runs nor writes to the module. Exit code 2 denotes a known CRC/vermagic mismatch; 3 denotes invalid/inaccessible inputs; 0 means only *no conclusive mismatch found*. A matching symbol CRC does not prove the original ROM matches the installed partition, the kernel trusts its signer, secure boot compatibility, or full vendor ABI. Output always declares `flash_ready=false` and cryptographic signature trust unverified.
+
 ## Read-only original ROM module comparison
 
 With the exact installed ROM's original `wlan.ko` available locally, run `scripts/compare-rom-modules.py` with `--built` and `--rom` paths. Compare `vermagic` and signer/key identifiers; mismatches are blockers, matching values are **not approval**. The script neither extracts the installed ROM nor writes to the device. Check the *actual* trusted module certificates and symbol ABI separately before image packaging.

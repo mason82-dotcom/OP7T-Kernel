@@ -89,6 +89,17 @@ The physical hotdog's `/vendor_dlkm` is mounted read-only and shows `qca_cld3_wl
 
 The Python device report also probes the exact device-tree module alias `qca_cld3_wlan.ko`, the original `wlan.ko`, both vendor/vendor_dlkm paths, and two kernel sysfs fields. Each fixed ADB read-only probe returns only `metadata_visible`, `readable`, `permission_denied`, `not_found_in_this_path` or `unknown_error`; it never collects raw sysfs values. A `Permission denied` result is **not** module absence. The device-tree init script specifies `insmod /vendor/lib/modules/qca_cld3_wlan.ko`, and on tested devices `/vendor/lib/modules` may be a symlink to `/vendor_dlkm/lib/modules`. No module key, ABI or boot compatibility is certified.
 
+## Offline ELF symbol CRC / ABI triage (read-only)
+
+The next hardware gate is **not another ADB scan**. Obtain the **original** `qca_cld3_wlan.ko` from a verified, matching `vendor_dlkm` ROM image via an offline extraction process (not by bypassing Android/SELinux). Then compare module-import symbol CRCs with a *matching* rebuilt `Module.symvers` and rebuilt `wlan.ko`:
+
+    python3 scripts/audit-module-abi.py \
+      --built .work/artifacts/core/modules/drivers/staging/qcacld-3.0/wlan.ko \
+      --rom /path/to/verified-rom/qca_cld3_wlan.ko \
+      --symvers .work/artifacts/core/Module.symvers
+
+The standard-library ELF64/AArch64 reader analyzes `.modinfo`, `__versions`, the module signature **trailer presence only**, SHA-256 and imported-symbol CRCs; it neither runs nor writes to the module. Exit code 2 denotes a known CRC/vermagic mismatch; 3 denotes invalid/inaccessible inputs; 0 means only *no conclusive mismatch found*. A matching symbol CRC does not prove the original ROM matches the installed partition, the kernel trusts its signer, secure boot compatibility, or full vendor ABI. Output always declares `flash_ready=false` and cryptographic signature trust unverified.
+
 ## Offline WLAN module comparison (read-only)
 
 Once the original `wlan.ko` has been extracted from the **exact installed ROM**, compare it with the rebuilt module:
