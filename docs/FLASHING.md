@@ -53,6 +53,15 @@ Only the exact installed build's original boot/DTBO and vendor modules can serve
 
 The generated `artifact-report.json` records the Image header, source SHA, DTBs, module hashes, vermagic, signer identity, signature key ID and algorithm. It verifies **build-internal** module release consistency and requires the Qualcomm WLAN module. The optional `Module.symvers` and `System.map` are retained for detailed local investigation. **Even signed modules may fail to load** if the certificate is not trusted by the exact running kernel. A successful audit is a raw-build check, not a flash certification. `flash_ready` is always `false`.
 
+## Offline OTA partition inventory (no extraction)
+
+After checking a local OTA ZIP against the pinned reference via `scripts/verify-rom-zip.py`, inspect its **CrAU A/B payload v2 manifest**:
+
+    python3 scripts/verify-rom-zip.py /path/to/crDroidAndroid-17.0-20261021-hotdog-v13.0.zip
+    python3 scripts/inspect-ota-payload.py /path/to/crDroidAndroid-17.0-20261021-hotdog-v13.0.zip
+
+The second command reads only a bounded protobuf manifest at the start of `payload.bin`, returning the OTA's *listed* `boot`, `dtbo`, `vendor`, `vendor_dlkm` and VBMeta partitions. It does **not** extract or hash partitions, cryptographically verify the payload signature, prove the ZIP was installed, or change the phone. Delta/partial OTA payloads may omit unchanged partitions: absent names are inconclusive. `flash_ready` remains false.
+
 ## Read-only original ROM module comparison
 
 With the exact installed ROM's original `wlan.ko` available locally, run `scripts/compare-rom-modules.py` with `--built` and `--rom` paths. Compare `vermagic` and signer/key identifiers; mismatches are blockers, matching values are **not approval**. The script neither extracts the installed ROM nor writes to the device. Check the *actual* trusted module certificates and symbol ABI separately before image packaging.

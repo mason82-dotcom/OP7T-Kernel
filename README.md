@@ -89,6 +89,15 @@ The physical hotdog's `/vendor_dlkm` is mounted read-only and shows `qca_cld3_wl
 
 The Python device report also probes the exact device-tree module alias `qca_cld3_wlan.ko`, the original `wlan.ko`, both vendor/vendor_dlkm paths, and two kernel sysfs fields. Each fixed ADB read-only probe returns only `metadata_visible`, `readable`, `permission_denied`, `not_found_in_this_path` or `unknown_error`; it never collects raw sysfs values. A `Permission denied` result is **not** module absence. The device-tree init script specifies `insmod /vendor/lib/modules/qca_cld3_wlan.ko`, and on tested devices `/vendor/lib/modules` may be a symlink to `/vendor_dlkm/lib/modules`. No module key, ABI or boot compatibility is certified.
 
+## Offline OTA partition inventory (no extraction)
+
+After checking a local OTA ZIP against the pinned reference via `scripts/verify-rom-zip.py`, inspect its **CrAU A/B payload v2 manifest**:
+
+    python3 scripts/verify-rom-zip.py /path/to/crDroidAndroid-17.0-20261021-hotdog-v13.0.zip
+    python3 scripts/inspect-ota-payload.py /path/to/crDroidAndroid-17.0-20261021-hotdog-v13.0.zip
+
+The second command reads only a bounded protobuf manifest at the start of `payload.bin`, returning the OTA's *listed* `boot`, `dtbo`, `vendor`, `vendor_dlkm` and VBMeta partitions. It does **not** extract or hash partitions, cryptographically verify the payload signature, prove the ZIP was installed, or change the phone. Delta/partial OTA payloads may omit unchanged partitions: absent names are inconclusive. `flash_ready` remains false.
+
 ## Offline WLAN module comparison (read-only)
 
 Once the original `wlan.ko` has been extracted from the **exact installed ROM**, compare it with the rebuilt module:
