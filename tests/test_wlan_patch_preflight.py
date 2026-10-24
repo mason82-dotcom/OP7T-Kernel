@@ -25,8 +25,8 @@ class WlanPatchPreflightTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "bad.patch"
             p.write_text(
-                "diff --git a/arch/arm64/kernel/start.S b/arch/arm64/kernel/start.S\\n"
-                "diff --git a/other b/other\\n",
+                "diff --git a/arch/arm64/kernel/start.S b/arch/arm64/kernel/start.S\n"
+                "diff --git a/other b/other\n",
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(M.PreflightError, "unexpected source paths"):
@@ -37,7 +37,7 @@ class WlanPatchPreflightTests(unittest.TestCase):
             kernel = Path(d) / "kernel"
             (kernel / ".git").mkdir(parents=True)
             fake = [
-                CompletedProcess([], 0, stdout=COMMIT + "\\n"),
+                CompletedProcess([], 0, stdout=COMMIT + "\n"),
                 CompletedProcess([], 0, stdout=""),
                 CompletedProcess([], 0, stdout=""),
             ]
@@ -56,8 +56,8 @@ class WlanPatchPreflightTests(unittest.TestCase):
             kernel = Path(d) / "kernel"
             (kernel / ".git").mkdir(parents=True)
             fake = [
-                CompletedProcess([], 0, stdout=COMMIT + "\\n"),
-                CompletedProcess([], 0, stdout=" M driver.c\\n"),
+                CompletedProcess([], 0, stdout=COMMIT + "\n"),
+                CompletedProcess([], 0, stdout=" M driver.c\n"),
             ]
             with patch.object(M.subprocess, "run", side_effect=fake) as run:
                 with self.assertRaisesRegex(M.PreflightError, "clean"):
