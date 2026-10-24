@@ -31,6 +31,20 @@ Version terminology: **crDroid 13 = Android 17; upstream branch `17.0`**. It doe
 
 These configuration values are source-tree observations, **not evidence of compatibility of any generated artifacts**.
 
+## Verified source-level LLVM selection (NOT exact OTA provenance)
+
+The current pinned `crdroidandroid/android_vendor_crdroid` **17.0** source snapshot at [commit `9e09ebeb03fc3e744b679401b9655f780b6b0af4`](https://github.com/crdroidandroid/android_vendor_crdroid/tree/9e09ebeb03fc3e744b679401b9655f780b6b0af4) selects:
+
+- `vars/aosp_target_release`: `aosp_target_release=cp2a`
+- `tools/get_clang_version.py`: reads the selected release's `RELEASE_BUILD_CLANG_VERSION.textproto`
+- `release/flag_values/cp2a/RELEASE_BUILD_CLANG_VERSION.textproto`: `clang-r596125`
+- `build/envsetup.sh`: exports `LLVM_AOSP_PREBUILTS_VERSION` from the selector
+- `config/BoardConfigKernel.mk`: defaults the kernel compiler to this AOSP prebuilt (unless `TARGET_KERNEL_CLANG_VERSION` overrides it); adds `LLVM=1 LLVM_IAS=1`
+
+No `TARGET_KERNEL_CLANG_VERSION` override was found in the inspected 17.0 `hotdog` or `sm8150-common` BoardConfigs. Our current CI uses **Clang 14**, so compiler and flag parity are **unverified**. These source files alone **cannot prove** the actual compiler that produced the **2026-10-21 hotdog OTA**. Obtain exact ROM-build provenance before calling the toolchain matched.
+
+A separate [toolchain evidence PR #15](https://github.com/mason82-dotcom/OP7T-Kernel/pull/15) records these upstream defaults, the host tool versions and checksums, without declaring the kernel flashable.
+
 ## Build workflow — default: standalone kernel
 
 Run on an isolated **Linux x86_64** build host (native or a correctly configured WSL2 Linux filesystem; not inside a Windows-mounted NTFS workspace). Select the exact toolchain deliberately; Clang 14 is the project's current experimental choice, **not yet proven bit-identical to the official ROM builder**.
