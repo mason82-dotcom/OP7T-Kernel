@@ -149,6 +149,29 @@ def collect(root, expected_sha, profile, require_signed=False, require_stripped=
         raise ValueError(f"Unsigned staged kernel modules despite required signatures: {unsigned[:10]}")
     if require_signed and not any(m["signer"] and m.get("signature_key_id") for m in wlan):
         raise ValueError("Signed Qualcomm WLAN module with signer and key ID is required")
+    # A kernel build generates an ephemeral certificate. Every staged module
+    # delivered as ONE build artifact must report the SAME signing identity.
+    # This checks modinfo metadata consistency only, not PKCS#7 or key trust.
+    identity_fields = ("signer", "signature_key_id", "signature_hash_algorithm")
+    identity_missing = [
+        m["path"] for m in module_details
+        if m["has_embedded_signature"] and not all(m.get(key) for key in identity_fields)
+    ]
+    reported_identities = {
+        tuple(m.get(key) for key in identity_fields)
+        for m in module_details
+        if m["has_embedded_signature"] and m["path"] not in identity_missing
+    }
+    signing_identity_consistent = (
+        not unsigned and not identity_missing and len(reported_identities) == 1
+    )
+    if require_signed and identity_missing:
+        raise ValueError(f"Signed staged modules lack signer/key ID/hash metadata: {identity_missing[:10]}")
+    if require_signed and not signing_identity_consistent:
+        raise ValueError(
+            "Mixed module signing identities detected: staged modules from "
+            "different keys/builds must not be combined"
+        )
     # Fail closed if the final staged signed ELF was not inspected.
     # Debug sections must be removed by Kbuild BEFORE signature creation.
     if require_stripped and any("debug_sections" not in m for m in module_details):
@@ -170,6 +193,10 @@ def collect(root, expected_sha, profile, require_signed=False, require_stripped=
         "dtbs": [{"path": str(p.relative_to(root)), "sha256": sha256_file(p)} for p in dtbs],
         "module_count": len(modules),
         "signed_module_count": sum(m["has_embedded_signature"] for m in module_details),
+        # Only a *reported* modinfo signing identity; never cryptographic trust.
+        "staged_module_signing_identity_consistent": signing_identity_consistent,
+        "staged_module_signing_identity_metadata_missing": identity_missing,
+        "staged_module_signing_identity_distinct_count": len(reported_identities),
         "module_strip_debug_required": require_stripped,
         "module_debug_sections_verified": require_stripped and not unstripped,
         "modules_with_debug_sections": unstripped,
@@ -190,6 +217,8 @@ def collect(root, expected_sha, profile, require_signed=False, require_stripped=
         "warnings": (
             (["UNSIGNED MODULE(S) with CONFIG_MODULE_SIG_FORCE=y: kernel rejects unsigned modules; do not flash"]
              if signature_load_blocked else [])
+            + (["Signed module metadata is incomplete or mixed across keys/builds; do not package"]
+               if not signing_identity_consistent else [])
             + [
             "Module signer and vermagic cannot establish ABI or trusted-key compatibility with the installed ROM",
             "DTBs are not yet matched with the exact installed ROM boot image",
