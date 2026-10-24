@@ -114,6 +114,95 @@ class AuditTests(unittest.TestCase):
             self.assertEqual("blocked_unsigned_modules", report["module_runtime_compatibility"])
             self.assertFalse(report["flash_ready"])
 
+    def test_final_signed_stripped_module_passes_without_rom_claim(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            signed_clean = {
+                "path": "modules/wlan.ko",
+                "vermagic": "4.14.357-perf SMP",
+                "signer": "Ephemeral build key",
+                "signature_key_id": "AA:BB",
+                "has_embedded_signature": True,
+                "debug_sections": [],
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=signed_clean):
+                report = AUDIT.collect(root, SOURCE_SHA, "core",
+                                       require_signed=True, require_stripped=True)
+            self.assertTrue(report["module_strip_debug_required"])
+            self.assertTrue(report["module_debug_sections_verified"])
+            self.assertEqual([], report["modules_with_debug_sections"])
+            self.assertFalse(report["rom_module_key_trust_verified"])
+            self.assertFalse(report["flash_ready"])
+
+    def test_final_signed_module_with_debug_sections_fails(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            signed_but_unstripped = {
+                "path": "modules/wlan.ko",
+                "vermagic": "4.14.357-perf SMP",
+                "signer": "Ephemeral build key",
+                "signature_key_id": "AA:BB",
+                "has_embedded_signature": True,
+                "debug_sections": [".debug_info"],
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=signed_but_unstripped):
+                with self.assertRaisesRegex(ValueError, "Debug sections remain"):
+                    AUDIT.collect(root, SOURCE_SHA, "core",
+                                  require_signed=True, require_stripped=True)
+
+    def test_strip_gate_fails_closed_without_debug_inspection(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            fixture(root)
+            signed_uninspected = {
+                "path": "modules/wlan.ko",
+                "vermagic": "4.14.357-perf SMP",
+                "signer": "Ephemeral build key",
+                "signature_key_id": "AA:BB",
+                "has_embedded_signature": True,
+            }
+            with patch.object(AUDIT, "module_metadata", return_value=signed_uninspected):
+                with self.assertRaisesRegex(ValueError, "Cannot verify stripped ELF"):
+                    AUDIT.collect(root, SOURCE_SHA, "core",
+                                  require_signed=True, require_stripped=True)
+
+    def test_readelf_section_parser_checks_both_debug_formats(self):
+        output = (
+            "There are 4 section headers, starting at offset 0x80:\n"
+            "  [Nr] Name              Type\n"
+            "  [ 0]                   NULL\n"
+            "  [ 1] .note.gnu.build-id NOTE\n"
+            "  [ 2] .debug_info       PROGBITS\n"
+            "  [ 3] .zdebug_line      PROGBITS\n"
+        )
+        completed = AUDIT.subprocess.CompletedProcess(
+            args=["readelf"], returncode=0, stdout=output, stderr=""
+        )
+        with patch.object(AUDIT.subprocess, "run", return_value=completed):
+            self.assertEqual(
+                [".debug_info", ".zdebug_line"],
+                AUDIT.module_debug_sections(Path("test.ko"), "test.ko"),
+            )
+
+    def test_readelf_parse_or_tool_failure_is_not_a_clean_module(self):
+        completed = AUDIT.subprocess.CompletedProcess(
+            args=["readelf"], returncode=0, stdout="No section headers", stderr=""
+        )
+        with patch.object(AUDIT.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(ValueError, "No ELF section headers"):
+                AUDIT.module_debug_sections(Path("bad.ko"), "bad.ko")
+        with patch.object(AUDIT.subprocess, "run", side_effect=FileNotFoundError()):
+            with self.assertRaisesRegex(ValueError, "Cannot inspect ELF sections"):
+                AUDIT.module_debug_sections(Path("bad.ko"), "bad.ko")
+
+    def test_build_script_pins_strip_at_modules_install_and_strict_audit(self):
+        script = (SCRIPT.parent / "build.sh").read_text(encoding="utf-8")
+        self.assertIn("INSTALL_MOD_STRIP=1 DEPMOD=true modules_install", script)
+        self.assertIn("--require-signed --require-stripped", script)
+        self.assertNotIn('strip "$ART/modules/', script)
+
     def test_corrupt_image_fails_closed(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

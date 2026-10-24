@@ -37,6 +37,12 @@ In GitHub Actions run [39975157488](https://github.com/mason82-dotcom/OP7T-Kerne
 
 For `CONFIG_MODULE_SIG_FORCE=y`, signing with the certificate generated during kernel compilation works only if the *running kernel* trusts the certificate. New builds generate their own certificate, and old vendor `.ko` files may depend on the old kernel's key or module ABI. Thus stage and sign rebuilt modules **with their matching kernel**, and audit *all* required vendor modules and the exact ROM installation paths. Never ship `certs/signing_key.pem` or a private key in a public artifact. The `signing-cert.sha256` report is a public fingerprint, not the private signing key. CI builds, even signed, are never flash-ready.
 
+## Signed-module size and ELF debug-section gate
+
+The `core` build reported a **916,922,321-byte** signed WLAN module before staged installation enabled debug stripping. This is substantially larger than the **14,982,321-byte** original reference-ROM `qca_cld3_wlan.ko`; size alone does not establish whether the ELF is compatible. The pinned kernel's `modules_install` first copies, then strips debug sections with `INSTALL_MOD_STRIP=1`, and **only then** signs the output using the ephemeral kernel build certificate. Never run `strip` on the signed file: it would alter the signature-covered bytes.
+
+The build now requires `--require-signed --require-stripped` in `scripts/audit-artifacts.py`. The final module is checked using `modinfo` (signer, key ID and vermagic) and `readelf -W -S` (no `.debug*` or `.zdebug_*` sections); errors fail closed. It remains unknown whether the new stripped WLAN module will fit the actual OTA's `vendor_dlkm` filesystem after module manifests and all other contents are accounted for. Verify size, original-ROM symbol ABI, kernel certificate trust, original images and rollback separately before packaging. `flash_ready=false`.
+
 ## Major blocker: kernel modules
 
 The vendor overlay sets `CONFIG_QCA_CLD_WLAN=m`; the base defconfig sets `CONFIG_MODULE_SIG_FORCE=y`. Existing ROM `wlan.ko` or `vendor_dlkm` modules can refuse to load after a rebuilt kernel due to signatures, vermagic or ABI. Do not disable signature enforcement just to bypass this check. A verified compatible and correctly signed module deployment plan is a separate release requirement.
