@@ -35,16 +35,20 @@ def inspect_executable(command):
     found = shutil.which(command)
     if not found:
         raise ValueError("Tool not found: " + command)
-    path = Path(found).resolve(strict=True)
+    invoked = Path(found).absolute()
+    path = invoked.resolve(strict=True)
     if not path.is_file():
         raise ValueError("Resolved tool is not a file")
     try:
-        result = subprocess.run([str(path), "--version"], capture_output=True, text=True,
+        # LLVM's 'lld' is multi-call: calling its resolved target as 'lld'
+        # rather than invoking 'ld.lld' can select no linker flavor and fail.
+        # Keep the invoked filename; hash the resolved binary separately.
+        result = subprocess.run([str(invoked), "--version"], capture_output=True, text=True,
                                 timeout=15, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ValueError("Unable to query tool version") from exc
     if result.returncode != 0:
-        raise ValueError("Tool --version failed")
+        raise ValueError("Tool --version failed: " + invoked.name + " (exit " + str(result.returncode) + ")")
     first_line = (result.stdout or "").splitlines()
     if not first_line:
         raise ValueError("Tool version is missing")
@@ -55,7 +59,7 @@ def inspect_executable(command):
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             digest.update(chunk)
-    return {"executable_name": path.name, "version_first_line": version,
+    return {"executable_name": invoked.name, "version_first_line": version,
             "sha256": digest.hexdigest(), "_resolved": path}
 
 
