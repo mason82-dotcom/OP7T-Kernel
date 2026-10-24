@@ -48,6 +48,26 @@ class ToolchainAuditTests(unittest.TestCase):
             self.assertFalse(report["aosp_prebuilt_path_layout_matches"])
             self.assertEqual("EXPERIMENTAL_DIFFERENT_TOOLCHAIN_PATH", report["status"])
 
+    def test_multicall_lld_symlink_must_be_invoked_by_linker_name(self):
+        # Reproduces Ubuntu LLVM: bin/ld.lld -> bin/lld; the target
+        # executable rejects '--version' unless argv[0] is 'ld.lld'.
+        with tempfile.TemporaryDirectory() as folder:
+            prefix = Path(folder) / "clang-r596125/bin"
+            cc = executable(prefix / "clang", "Android clang fixture")
+            target = prefix / "lld"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                "#!/bin/sh\\ncase \"$0\" in */ld.lld) echo 'LLD 14' ;; *) exit 1 ;; esac\\n",
+                encoding="utf-8",
+            )
+            target.chmod(0o755)
+            link = prefix / "ld.lld"
+            link.symlink_to(target.name)
+            result = AUDIT.inspect_tools(cc, str(link), self.ref)
+            self.assertEqual("ld.lld", result["linker"]["executable_name"])
+            self.assertTrue(result["aosp_prebuilt_path_layout_matches"])
+            self.assertFalse(result["flash_ready"])
+
     def test_missing_tool_fails_closed(self):
         with self.assertRaises(ValueError):
             AUDIT.inspect_tools("/definitely/not/present/clang", "ld.lld", self.ref)
