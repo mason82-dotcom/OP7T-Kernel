@@ -40,7 +40,7 @@ done
 echo "LLVM utility path: $(command -v llvm-nm)"
 
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo "Linux x86_64 build host required" >&2; exit 2; }
-for command_name in make git python3 sha256sum "$CC_BIN" "$LD_BIN" "$AR_BIN" "$NM_BIN" "$OBJCOPY_BIN" "$OBJDUMP_BIN" "$STRIP_BIN"; do
+for command_name in make git python3 sha256sum readelf "$CC_BIN" "$LD_BIN" "$AR_BIN" "$NM_BIN" "$OBJCOPY_BIN" "$OBJDUMP_BIN" "$STRIP_BIN"; do
   command -v "$command_name" >/dev/null || { echo "Missing build tool: $command_name" >&2; exit 2; }
 done
 bash "$ROOT/scripts/fetch-source.sh"
@@ -108,7 +108,9 @@ fi
 STAGE="$ROOT/.work/module-stage-$PROFILE"
 rm -rf -- "$STAGE"
 mkdir -p "$STAGE"
-make -C "$KERNEL" "${KARGS[@]}" INSTALL_MOD_PATH="$STAGE" DEPMOD=true modules_install
+# Kbuild order in scripts/Makefile.modinst: copy -> strip-debug -> sign.
+# Never strip modules after they have been signed; preserve the staged signature.
+make -C "$KERNEL" "${KARGS[@]}" INSTALL_MOD_PATH="$STAGE" INSTALL_MOD_STRIP=1 DEPMOD=true modules_install
 
 RELEASE="$(cat "$ART/kernel.release")"
 STAGED_KERNEL="$STAGE/lib/modules/$RELEASE/kernel"
@@ -130,7 +132,7 @@ while IFS= read -r -d '' dtb; do
   install -D -m 0644 "$dtb" "$ART/dtbs/$relative"
 done < <(find "$OUT/arch/arm64/boot/dts" -type f -name '*.dtb' -print0)
 
-python3 "$ROOT/scripts/audit-artifacts.py" "$ART" --expected-sha "$UPSTREAM_SHA" --profile "$PROFILE" --require-signed
+python3 "$ROOT/scripts/audit-artifacts.py" "$ART" --expected-sha "$UPSTREAM_SHA" --profile "$PROFILE" --require-signed --require-stripped
 (
   cd "$ART"
   find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 -r sha256sum > SHA256SUMS
