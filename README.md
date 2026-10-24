@@ -27,7 +27,7 @@ Internal QCACLD monitor/injection is **not implemented**. Older NetHunter Androi
 ## Build on Linux x86_64
 
     sudo apt-get install -y git make bc bison flex python3 build-essential \
-      libelf-dev libssl-dev kmod clang-14 lld-14 llvm-14 \
+      libelf-dev libssl-dev binutils kmod clang-14 lld-14 llvm-14 \
       gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
     bash scripts/fetch-source.sh
@@ -62,6 +62,13 @@ The earlier baseline generated **2 unsigned modules** because `make modules` was
 ### Secure module staging
 
 `scripts/build.sh` now requires `CONFIG_MODULE_SIG_ALL=y`, stages modules through Kbuild's `modules_install` into a temporary directory, and copies **only staged modules** into `artifacts/<profile>/modules`. The public build-certificate SHA-256 is recorded in `signing-cert.sha256`; generated private key `certs/signing_key.pem` stays exclusively in ignored `.work/out-<profile>`, never in CI-uploaded artifacts. The artifact audit runs in `--require-signed` mode and rejects unsigned modules or WLAN modules without a signing key ID. Signing success must be proven by CI.
+
+### Strip debug information before signing
+
+The previous unstripped `core` report measured a **916,922,321-byte** `wlan.ko`, compared with a **14,982,321-byte** `qca_cld3_wlan.ko` extracted from the verified *reference* OTA. This size discrepancy suggests substantial debug sections but does **not** prove that stripping alone resolves the size/ABI problem. `scripts/build.sh` now passes `INSTALL_MOD_STRIP=1` to the kernel's staged `modules_install`. The pinned upstream `scripts/Makefile.modinst` orders **copy -> strip (`--strip-debug`) -> sign**, so no signed `.ko` is edited afterward.
+
+The artifact audit now calls `readelf -W -S` on **the final signed staged modules** and refuses publication if debug sections are present, section inspection fails, or existing `modinfo` signer/key-ID checks fail. It records `module_strip_debug_required`, `module_debug_sections_verified` and `modules_with_debug_sections` in `artifact-report.json`. The real stripped size still needs a successful CI run, and no partition-fit, original-ROM ABI, signer trust, installed-image identity or flash compatibility can be claimed. `flash_ready=false` remains enforced. [Module install order](https://github.com/crdroidandroid/android_kernel_oneplus_sm8150/blob/17.0/scripts/Makefile.modinst).
+
 
 ## NetHunter feature assessment
 
