@@ -88,7 +88,7 @@ def parse_modinfo(raw: bytes) -> dict:
             if key in items:
                 raise AuditError("Duplicate module info key")
             value = v.decode("utf-8", errors="replace")
-            if not value or len(value) > 1024:
+            if (key in ("vermagic", "name") and not value) or len(value) > 1024:
                 raise AuditError("Invalid module info value")
             items[key] = value
     if not items.get("vermagic"):
