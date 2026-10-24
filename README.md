@@ -121,6 +121,10 @@ Once the original `wlan.ko` has been extracted from the **exact installed ROM**,
 
 The script compares module name, complete `vermagic`, signer, signature key ID and hash algorithm. A mismatch is a blocker; matching values still **do not prove kernel key trust, ABI compatibility, device bootability or NetHunter readiness**. It never writes to or modifies the phone.
 
+## QCACLD-3.0 internal WLAN injection patch candidates (research only)
+
+See [QCACLD3 patch research](docs/QCACLD3_PATCH_RESEARCH.md) for current Kali/OnePlus 7 SM8150 references, conflicting field evidence, and a source-pinned **read-only** git-apply preflight. The candidate adds driver C files and `FEATURE_FRAME_INJECTION_SUPPORT` but **no patch is imported or applied** to this project automatically. `hotdog` running crDroid 13 / Android 17 has **no verified internal injection support**. We will not alter module signing, firmware or kernel security just to make the patch load.
+
 ## Offline ARM64 module ABI triage
 
 [Read-only ABI audit](docs/MODULE_ABI_AUDIT.md) checks `__versions` symbol CRCs, `.modinfo`, dependencies and signature trailer presence in the built and exact-ROM `wlan.ko` / `qca_cld3_wlan.ko` and `gspca_main.ko`. Supplying `Module.symvers` improves coverage but does not prove ABI or signature trust. `--fail-on-unknown` distinguishes unresolved evidence from a passing comparison. Build outputs, signed or unsigned, remain **NOT FLASHABLE**.
