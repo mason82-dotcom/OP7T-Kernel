@@ -121,6 +121,10 @@ Once the original `wlan.ko` has been extracted from the **exact installed ROM**,
 
 The script compares module name, complete `vermagic`, signer, signature key ID and hash algorithm. A mismatch is a blocker; matching values still **do not prove kernel key trust, ABI compatibility, device bootability or NetHunter readiness**. It never writes to or modifies the phone.
 
+## Optional WLAN driver patches (not enabled by default)
+
+The [WLAN patch catalog](patches/README.md) includes a source-pinned QCACLD 3.0 passive-monitor safety fix for a null monitor VDEV and an unsigned error check. It remains **unapplied and uncompiled**; PR CI now runs `git apply --check` on the clean pinned kernel source without changing it. Internal packet injection is not enabled. Do not confuse monitor-mode readiness with working TX injection or installed-ROM compatibility.
+
 ## Offline ARM64 module ABI triage
 
 [Read-only ABI audit](docs/MODULE_ABI_AUDIT.md) checks `__versions` symbol CRCs, `.modinfo`, dependencies and signature trailer presence in the built and exact-ROM `wlan.ko` / `qca_cld3_wlan.ko` and `gspca_main.ko`. Supplying `Module.symvers` improves coverage but does not prove ABI or signature trust. `--fail-on-unknown` distinguishes unresolved evidence from a passing comparison. Build outputs, signed or unsigned, remain **NOT FLASHABLE**.
