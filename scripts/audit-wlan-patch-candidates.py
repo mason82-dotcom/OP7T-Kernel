@@ -17,6 +17,9 @@ def inspect_source(source):
         "config": BASE / "configs/default_defconfig",
         "kbuild": BASE / "Kbuild",
         "rx": BASE / "core/hdd/src/wlan_hdd_rx_monitor.c",
+        "icnss_rx": BASE / "core/hdd/src/wlan_hdd_tx_rx.c",
+        "defconfig": Path("arch/arm64/configs/vendor/sm8150-perf_defconfig"),
+        "oplus": Path("arch/arm64/configs/vendor/oplus.config"),
     }
     sources = {}
     for field, relative in paths.items():
@@ -28,8 +31,22 @@ def inspect_source(source):
                        sources["config"], re.MULTILINE)
     if len(match) != 1:
         raise ValueError("Ambiguous monitor mode config")
+    # hotdog builds with CONFIG_ICNSS=y. The callback in wlan_hdd_rx_monitor.c
+    # has Lithium/QCA6290+ guards; its presence alone says nothing about
+    # whether it serves this device's monitor RX path.
+    icnss = bool(re.search(r"^CONFIG_ICNSS=y$", sources["defconfig"], re.MULTILINE))
+    module_enabled = bool(re.search(r"^CONFIG_QCA_CLD_WLAN=m$", sources["oplus"], re.MULTILINE))
+    default_profile = 'CONFIG_QCA_CLD_WLAN_PROFILE="default"' in sources["oplus"]
+    callback = re.search(
+        r"static QDF_STATUS hdd_mon_rx_packet_cbk\\(.*?\\n}\\n#endif",
+        sources["icnss_rx"], re.DOTALL,
+    )
+    body = callback.group(0) if callback else ""
+    icnss_anchor = body.count("rxstat = netif_rx_ni(skb);") == 1 and (
+        body.count("rxstat = netif_rx(skb);") >= 1
+    )
     return {
-        "schema": "hotdog-qcacld-monitor-patch-candidates-v1",
+        "schema": "hotdog-qcacld-monitor-patch-candidates-v2",
         "kernel_source_sha": SHA,
         "monitor_enabled_in_default_profile": match[0] == "y",
         "kimocoder_patch_redundant": match[0] == "y",
@@ -39,6 +56,17 @@ def inspect_source(source):
         "lithium_gate_in_kbuild": "CONFIG_LITHIUM" in sources["kbuild"],
         "packet_capture_gate_in_kbuild": "CONFIG_WLAN_FEATURE_PKT_CAPTURE" in sources["kbuild"],
         "rx_rfc_anchor_matches": sources["rx"].count("rxstat = netif_rx_ni(skb);") == 1,
+        "hotdog_icnss_configured": icnss,
+        "qcacld_is_module": module_enabled,
+        "qcacld_default_profile_selected": default_profile,
+        "hotdog_icnss_monitor_callback_present": callback is not None,
+        "hotdog_icnss_rx_rfc_anchor_matches": icnss_anchor,
+        "hotdog_patch_applicable_by_source": (icnss and module_enabled and
+                                               default_profile and icnss_anchor),
+        "selected_monitor_rx_candidate": (
+            "0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch"
+            if icnss and module_enabled and default_profile else None
+        ),
         "patch_applied": False,
         "runtime_monitor_verified": False,
         "packet_injection_verified": False,
@@ -56,11 +84,22 @@ def main():
         if rev.stdout.strip() != SHA:
             raise ValueError("Source SHA differs from pinned upstream")
         report = inspect_source(args.source)
+        if report["hotdog_patch_applicable_by_source"]:
+            candidate = ROOT / "patches/candidates/0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch"
+            check = subprocess.run(
+                ["git", "-C", str(args.source), "apply", "--check", str(candidate)],
+                capture_output=True, check=False, text=True, timeout=15,
+            )
+            report["hotdog_candidate_git_apply_check"] = check.returncode == 0
+        else:
+            report["hotdog_candidate_git_apply_check"] = False
     except (OSError, UnicodeError, ValueError, subprocess.SubprocessError) as exc:
         print("WLAN patch preflight FAILED: " + str(exc), file=sys.stderr)
         return 3
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if report["rx_rfc_anchor_matches"] else 2
+    return 0 if report["hotdog_patch_applicable_by_source"] and report[
+        "hotdog_candidate_git_apply_check"
+    ] else 2
 
 
 if __name__ == "__main__":
