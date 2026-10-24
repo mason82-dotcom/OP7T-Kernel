@@ -108,6 +108,10 @@ Once the original `wlan.ko` has been extracted from the **exact installed ROM**,
 
 The script compares module name, complete `vermagic`, signer, signature key ID and hash algorithm. A mismatch is a blocker; matching values still **do not prove kernel key trust, ABI compatibility, device bootability or NetHunter readiness**. It never writes to or modifies the phone.
 
+## Offline ELF symbol ABI audit (experimental)
+
+[Module ABI audit](docs/MODULE_ABI_AUDIT.md) adds an AArch64 ELF64 read-only comparator of `.modinfo`, `__versions` symbol CRCs, optional `Module.symvers`, module dependencies and signature trailer structure. The original `qca_cld3_wlan.ko` and `gspca_main.ko` must be traced to the **exact installed** ROM before interpreting the result. Use `--fail-on-unknown` for an explicitly conservative exit status. Matching CRCs, signature trailers and filenames cannot prove module key trust or hardware bootability; `flash_ready=false` remains mandatory.
+
 ## Offline original boot image header audit
 
 For an **original** `boot.img` from the exact installed `hotdog` ROM, run `python3 scripts/audit-bootimg.py /path/to/original-boot.img`. Optionally add `--expect-sha256 <known_hash>` to verify its original fingerprint. The script checks the AOSP boot header v2, 4096-byte pages, raw ARM64 kernel, required ramdisk and embedded FDT/DTB, section offsets and truncation. It emits JSON **only to stdout**, never extracts/patches/flashes. It does not verify AVB, DTBO partition, installed-ROM provenance, runtime module keys or hardware bootability; `flash_ready` remains false. Header layout is from [AOSP android17-release bootimg.h](https://android.googlesource.com/platform/system/tools/mkbootimg/+/refs/heads/android17-release/include/bootimg/bootimg.h).
