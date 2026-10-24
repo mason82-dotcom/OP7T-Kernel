@@ -170,12 +170,12 @@ class AuditTests(unittest.TestCase):
 
     def test_readelf_section_parser_checks_both_debug_formats(self):
         output = (
-            "There are 4 section headers, starting at offset 0x80:\\n"
-            "  [Nr] Name              Type\\n"
-            "  [ 0]                   NULL\\n"
-            "  [ 1] .note.gnu.build-id NOTE\\n"
-            "  [ 2] .debug_info       PROGBITS\\n"
-            "  [ 3] .zdebug_line      PROGBITS\\n"
+            "There are 4 section headers, starting at offset 0x80:\n"
+            "  [Nr] Name              Type\n"
+            "  [ 0]                   NULL\n"
+            "  [ 1] .note.gnu.build-id NOTE\n"
+            "  [ 2] .debug_info       PROGBITS\n"
+            "  [ 3] .zdebug_line      PROGBITS\n"
         )
         completed = AUDIT.subprocess.CompletedProcess(
             args=["readelf"], returncode=0, stdout=output, stderr=""
