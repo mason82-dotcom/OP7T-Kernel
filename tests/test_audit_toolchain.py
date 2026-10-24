@@ -57,7 +57,7 @@ class ToolchainAuditTests(unittest.TestCase):
             target = prefix / "lld"
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(
-                "#!/bin/sh\\ncase \"$0\" in */ld.lld) echo 'LLD 14' ;; *) exit 1 ;; esac\\n",
+                "#!/bin/sh\ncase \"$0\" in */ld.lld) echo 'LLD 14' ;; *) exit 1 ;; esac\n",
                 encoding="utf-8",
             )
             target.chmod(0o755)
