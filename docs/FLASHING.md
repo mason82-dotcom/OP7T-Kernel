@@ -75,7 +75,7 @@ The new `scripts/device-evidence.py` uses Python 3 and `adb` (Android Platform T
 
     py -3 scripts/device-evidence.py --output hotdog-device-evidence.json
 
-The file is ignored by Git and will **not** be overwritten. No ADB root, file pull/push, or flashing occurs. Missing/inaccessible WLAN modules are not evidence of absence. Kernel-signing key trust, verified original boot images, vendor module symbol ABI and device hardware acceptance remain open.
+The file is ignored by Git and will **not** be overwritten. The device guard recognizes both `hotdog` and its stock/OEM `OnePlus7TPro` property alias, but NOT `hotdogg` / 5G McLaren. This is only an inventory guard, not a device identity or boot image certification. No ADB root, file pull/push, or flashing occurs. Missing/inaccessible WLAN modules are not evidence of absence. Kernel-signing key trust, verified original boot images, vendor module symbol ABI and device hardware acceptance remain open.
 
 ## Required tests before any real flash
 

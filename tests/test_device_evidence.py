@@ -70,6 +70,20 @@ class EvidenceTests(unittest.TestCase):
             MODULE.adb(["get-state"], "device; reboot")
 
     @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
+    def test_oneplus_vendor_property_alias_accepted(self, run):
+        with patch.dict(PROPS, {"ro.product.device": "OnePlus7TPro"}):
+            result = MODULE.collect()
+        self.assertTrue(result["device_property_is_oem_alias"])
+        self.assertEqual("hotdog", result["target_device"])
+        self.assertFalse(result["flash_ready"])
+
+    @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
+    def test_mclaren_5g_alias_rejected(self, run):
+        with patch.dict(PROPS, {"ro.product.device": "OnePlus7TProNR"}):
+            with self.assertRaisesRegex(MODULE.DeviceEvidenceError, "hotdog"):
+                MODULE.collect()
+
+    @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
     def test_wrong_device_is_fail_closed(self, run):
         with patch.dict(PROPS, {"ro.product.device": "hotdogg"}):
             with self.assertRaisesRegex(MODULE.DeviceEvidenceError, "hotdog"):

@@ -62,6 +62,18 @@ esac
         self.assertEqual(0, r.returncode, r.stderr)
         self.assertIn("Kernel release:", r.stdout)
 
+    def test_oem_device_alias_accepted(self):
+        r = self.probe(device="OnePlus7TPro")
+        self.assertEqual(0, r.returncode, r.stderr)
+        self.assertIn("OEM product device alias", r.stdout)
+        self.assertIn("flash_ready=false", r.stdout)
+
+    def test_mclaren_5g_property_rejected(self):
+        r = self.probe(device="OnePlus7TProNR")
+        self.assertEqual(3, r.returncode)
+        self.assertIn("STOP: device is not", r.stderr)
+        self.assertNotIn("MODULE_PATH", r.stdout)
+
     def test_wrong_device_rejected(self):
         r = self.probe(device="hotdogg")
         self.assertEqual(3, r.returncode)

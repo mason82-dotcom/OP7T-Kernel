@@ -132,7 +132,7 @@ def collect(serial=None):
         if len(value) > 1024 or "\n" in value or "\t" in value:
             raise DeviceEvidenceError("Unexpected device property content")
         actual[name] = value
-    if actual["device"] != "hotdog":
+    if actual["device"] not in ("hotdog", "OnePlus7TPro"):
         raise DeviceEvidenceError("STOP: OnePlus 7T Pro hotdog required; hotdogg is not supported")
     if actual["android_release"] != "17":
         raise DeviceEvidenceError("STOP: Android 17 required for the pinned crDroid 13 kernel")
@@ -149,6 +149,7 @@ def collect(serial=None):
     return {
         "schema": SCHEMA,
         "target_device": "hotdog",
+        "device_property_is_oem_alias": actual["device"] == "OnePlus7TPro",
         "device": actual,
         "kernel_release": kernel_release,
         "wlan": wlan,
