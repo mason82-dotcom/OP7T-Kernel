@@ -10,7 +10,7 @@ on:
         type: choice
         default: baseline
         required: true
-        options: [baseline, core, external]
+        options: [baseline, core, external, kernelsu]
 
 concurrency:
   group: kernel-${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Shell syntax
-        run: bash -n scripts/fetch-source.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
+        run: bash -n scripts/fetch-source.sh scripts/prepare-kernelsu-next.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
       - name: Python config validation tests
         run: python3 -m unittest discover -s tests -v
       - name: Version and SHA lock
@@ -36,6 +36,8 @@ jobs:
           test "$ROM_ANDROID" = 17
           test "$ROM_CRDROID" = 13
           [[ "$UPSTREAM_SHA" =~ ^[a-f0-9]{40}$ ]]
+          source config/kernelsu-next.lock
+          [[ "$KSU_SHA" =~ ^[a-f0-9]{40}$ ]]
 
   build:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
@@ -45,8 +47,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # PRs compile NetHunter profiles; manual runs can select baseline.
-        profile: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.profile) || '["core","external"]') }}
+        # PRs compile NetHunter profiles; the KernelSU branch additionally compiles kernelsu.
+        profile: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.profile) || (github.head_ref == 'feature/hotdog-kernelsu-next' && '["kernelsu"]' || '["core","external"]')) }}
     name: Build ${{ matrix.profile }} (experimental)
     steps:
       - uses: actions/checkout@v4
@@ -102,6 +104,7 @@ jobs:
             .work/artifacts/${{ matrix.profile }}/kernel.release
             .work/artifacts/${{ matrix.profile }}/upstream-commit.txt
             .work/artifacts/${{ matrix.profile }}/toolchain-report.json
+            .work/artifacts/${{ matrix.profile }}/kernelsu-next-commit.txt
           if-no-files-found: error
           retention-days: 7
       - name: Upload raw kernel and modules (manual only)
