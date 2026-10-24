@@ -47,12 +47,87 @@ def fake_run(command, **kwargs):
         result = "4.14.357-perf\n"
     elif len(tail) == 2 and tail[0] == "shell" and "WLAN" not in tail[1]:
         result = PROBE
+    elif len(tail) == 4 and tail[:3] == ["shell", "ls", "-ld"]:
+        path = tail[3]
+        if path == "/vendor/lib/modules":
+            return subprocess.CompletedProcess(
+                command, 0, "lrwxrwxrwx /vendor/lib/modules -> /vendor_dlkm/lib/modules\n", ""
+            )
+        if path == "/vendor/lib/modules/qca_cld3_wlan.ko":
+            return subprocess.CompletedProcess(
+                command, 1, "", "ls: Permission denied"
+            )
+        if path.endswith("/wlan.ko"):
+            return subprocess.CompletedProcess(
+                command, 1, "", "No such file or directory"
+            )
+        return subprocess.CompletedProcess(command, 0, "metadata available", "")
+    elif len(tail) == 3 and tail[:2] == ["shell", "cat"]:
+        if tail[2].endswith("/initstate"):
+            return subprocess.CompletedProcess(command, 1, "", "Permission denied")
+        return subprocess.CompletedProcess(command, 1, "", "No such file or directory")
     else:
         raise AssertionError(f"Unexpected ADB arguments: {tail}")
     return subprocess.CompletedProcess(command, 0, result, "")
 
 
 class EvidenceTests(unittest.TestCase):
+    @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
+    def test_real_device_style_access_denial_is_not_absence(self, run):
+        report = MODULE.collect()
+        diag = report["wlan"]["access_diagnostics"]
+        self.assertEqual(
+            "permission_denied",
+            diag["paths"]["wlan_vendor_alias"]["status"],
+        )
+        self.assertEqual(
+            "not_found_in_this_path",
+            diag["paths"]["wlan_vendor_original"]["status"],
+        )
+        self.assertEqual(
+            "permission_denied",
+            diag["paths"]["wlan_kernel_initstate"]["status"],
+        )
+        self.assertEqual(
+            "not_found_in_this_path",
+            diag["paths"]["wlan_kernel_srcversion"]["status"],
+        )
+        self.assertTrue(diag["vendor_modules_link_to_vendor_dlkm_observed"])
+        self.assertTrue(diag["no_access_is_not_evidence_of_absence"])
+        self.assertFalse(diag["actual_module_source_or_abi_verified"])
+        self.assertFalse(report["flash_ready"])
+
+    def test_errno_classification_does_not_confuse_failures(self):
+        self.assertEqual(
+            "permission_denied",
+            MODULE.classify_access(1, "", "Permission denied", "ls")
+        )
+        self.assertEqual(
+            "not_found_in_this_path",
+            MODULE.classify_access(1, "", "No such file or directory", "ls")
+        )
+        self.assertEqual(
+            "unknown_error", MODULE.classify_access(42, "", "other error", "cat")
+        )
+        self.assertEqual(
+            "metadata_visible", MODULE.classify_access(0, "ok", "", "ls")
+        )
+        self.assertEqual(
+            "readable", MODULE.classify_access(0, "live", "", "cat")
+        )
+
+    @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
+    def test_fixed_probe_commands_never_write_or_exfiltrate_files(self, run):
+        MODULE.probe_fixed_paths()
+        self.assertEqual(len(MODULE.EXACT_ACCESS_PROBES), len(run.call_args_list))
+        for call in run.call_args_list:
+            command = call.args[0]
+            self.assertEqual("adb", command[0])
+            self.assertEqual("shell", command[1])
+            self.assertIn(command[2], ("ls", "cat"))
+            self.assertNotIn(command[2], ("pull", "push", "root", "remount"))
+            self.assertTrue(command[-1].startswith(("/vendor/", "/vendor_dlkm/", "/sys/")))
+
     @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
     def test_successful_read_only_json(self, run):
         report = MODULE.collect()
