@@ -1,4 +1,5 @@
 import importlib.util
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -73,6 +74,32 @@ class WlanPatchCandidateTests(unittest.TestCase):
         report = AUDIT.inspect_source(self.src)
         self.assertFalse(report["qcacld_is_module"])
         self.assertFalse(report["hotdog_patch_applicable_by_source"])
+
+    def test_hotdog_candidate_patch_passes_git_apply_check_on_pinned_hunk(self):
+        candidate = (SCRIPT.parent.parent / "patches/candidates/"
+                     "0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch")
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            path = root / AUDIT.BASE / "core/hdd/src/wlan_hdd_tx_rx.c"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            source = ("\\n" * 1444).replace("\\n", "\n") + (
+                "\t\t\trxstat = netif_rx(skb);\n"
+                "\t\t} else {\n"
+                "\t\t\t/*\n"
+                "\t\t\t * This is the last packet on the chain\n"
+                "\t\t\t * Scheduling rx sirq\n"
+                "\t\t\t */\n"
+                "\t\t\trxstat = netif_rx_ni(skb);\n"
+                "\t\t}\n"
+                "\n"
+                "\t\tif (NET_RX_SUCCESS == rxstat)\n"
+            )
+            path.write_text(source, encoding="utf-8")
+            proc = subprocess.run(
+                ["git", "apply", "--check", str(candidate)], cwd=root,
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(0, proc.returncode, proc.stderr)
 
     def test_candidate_patch_is_off_by_default_and_scoped(self):
         patch = (SCRIPT.parent.parent / "patches/candidates/"
