@@ -38,7 +38,7 @@ def inspect_source(source):
     module_enabled = bool(re.search(r"^CONFIG_QCA_CLD_WLAN=m$", sources["oplus"], re.MULTILINE))
     default_profile = 'CONFIG_QCA_CLD_WLAN_PROFILE="default"' in sources["oplus"]
     callback = re.search(
-        r"static QDF_STATUS hdd_mon_rx_packet_cbk\\(.*?\\n}\\n#endif",
+        r"static QDF_STATUS hdd_mon_rx_packet_cbk\(.*?\n}\n#endif",
         sources["icnss_rx"], re.DOTALL,
     )
     body = callback.group(0) if callback else ""
