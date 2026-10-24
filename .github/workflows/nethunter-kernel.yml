@@ -37,6 +37,18 @@ jobs:
           test "$ROM_CRDROID" = 13
           [[ "$UPSTREAM_SHA" =~ ^[a-f0-9]{40}$ ]]
 
+  wlan-patch-preflight:
+    if: github.event_name == 'pull_request'
+    needs: lint
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned upstream source (never modify)
+        run: bash scripts/fetch-source.sh
+      - name: Check optional QCACLD monitor patch applicability (read-only)
+        run: python3 scripts/check-wlan-patches.py --kernel .work/kernel
+
   build:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     needs: lint
