@@ -23,6 +23,18 @@ This repository is the **build and patch workspace** for the **OnePlus 7T Pro (`
 | `baseline` | Build original 17.0 kernel + correct OPlus overlay | reference, still untested |
 | `core` | Enable SYSVIPC / USB serial and ACM/ECM functions | experimental |
 | `external` | Core + built-in ath9k_htc, carl9170, rtl8187, mt7601u, rt2800usb | experimental; adapter firmware and injection **not verified** |
+| `kernelsu` | Core + KernelSU-Next built in with kprobe hooks | experimental; boot and root operation **not verified** |
+
+The separate `feature/hotdog-kernelsu-next` branch pins KernelSU-Next `v1.1.0` at
+`89a0d4c53e9d5d8c6d53922f342d858c4c7f300c`. `bash scripts/build.sh kernelsu`
+prepares a separate kernel worktree and adds the pinned source under
+`drivers/kernelsu`; the clean original source remains available to other profiles.
+The final config must contain `CONFIG_KSU=y`, `CONFIG_KSU_KPROBES_HOOK=y` and
+`CONFIG_KPROBES=y`. The exact KernelSU commit is recorded in
+`kernelsu-next-commit.txt` and the artifact report. This is a build experiment,
+not proof that kprobes work on this handset. The newer `legacy` Kconfig warns
+against its tracepoint+kretprobe mode below Linux 5.10, so updating the pin
+needs a separate source and runtime review. No SUSFS patch is included.
 
 Internal QCACLD monitor/injection is **not implemented**. Older NetHunter Android-13 or LineageOS driver trees must not be copied wholesale. The external profile includes drivers, **not injection patches**; monitor/injection availability must be verified for specific adapters.
 
@@ -133,6 +145,6 @@ For an **original** `boot.img` from the exact installed `hotdog` ROM, run `pytho
 
 The **original** ROM boot image, active slot, original module signatures and firmware, boot header and DTB/DTBO must be validated from the actual installed build. Kernel module signatures matter: baseline `CONFIG_MODULE_SIG_FORCE=y` while OPlus enables `CONFIG_QCA_CLD_WLAN=m`. Do **not** disable module security enforcement to make an image appear compatible.
 
-Read [flash safety and recovery](docs/FLASHING.md) first. No script changes the phone. No KernelSU/Magisk changes are made. Please use NetHunter features only in explicitly authorized testing.
+Read [flash safety and recovery](docs/FLASHING.md) first. No script changes the phone. The experimental KernelSU-Next branch changes only the build output; no phone or Magisk installation is performed. Please use NetHunter features only in explicitly authorized testing.
 
 Sources: [crDroid hotdog v13](https://www.crdroid.net/hotdog/13), [crDroid 17.0 board config](https://github.com/crdroidandroid/android_device_oneplus_sm8150-common/blob/17.0/BoardConfigCommon.mk), [Kali NetHunter kernel docs](https://www.kali.org/docs/nethunter/).
