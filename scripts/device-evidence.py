@@ -127,6 +127,68 @@ def parse_wlan_probe(output):
     }, warnings
 
 
+
+# Keep these fixed and narrowly scoped. No probe shells out with device/user data.
+# Checking metadata/readability cannot establish signature, module ABI or actual loading path.
+EXACT_ACCESS_PROBES = (
+    ("vendor_modules_link", "ls", "/vendor/lib/modules"),
+    ("vendor_dlkm_directory", "ls", "/vendor_dlkm/lib/modules"),
+    ("wlan_vendor_alias", "ls", "/vendor/lib/modules/qca_cld3_wlan.ko"),
+    ("wlan_dlkm_alias", "ls", "/vendor_dlkm/lib/modules/qca_cld3_wlan.ko"),
+    ("wlan_vendor_original", "ls", "/vendor/lib/modules/wlan.ko"),
+    ("wlan_dlkm_original", "ls", "/vendor_dlkm/lib/modules/wlan.ko"),
+    ("wlan_kernel_initstate", "cat", "/sys/module/wlan/initstate"),
+    ("wlan_kernel_srcversion", "cat", "/sys/module/wlan/srcversion"),
+)
+
+
+def classify_access(returncode, stdout, stderr, operation):
+    """Interpret device-side access errno without conflating denial and absence."""
+    message = (stdout + "\n" + stderr).lower()
+    if "permission denied" in message or "operation not permitted" in message:
+        return "permission_denied"
+    if "no such file or directory" in message or "not found" in message:
+        return "not_found_in_this_path"
+    if returncode == 0:
+        return "readable" if operation == "cat" else "metadata_visible"
+    return "unknown_error"
+
+
+def probe_fixed_paths(serial=None):
+    """Only fixed read-only ADB commands; never store raw kernel/file contents."""
+    result = {}
+    link_to_dlkm = False
+    for label, operation, path in EXACT_ACCESS_PROBES:
+        command = ["adb"]
+        if serial is not None:
+            if not SERIAL.fullmatch(serial):
+                raise DeviceEvidenceError("Invalid ADB serial syntax")
+            command.extend(["-s", serial])
+        command.extend(["shell", "ls", "-ld", path] if operation == "ls"
+                       else ["shell", "cat", path])
+        try:
+            response = subprocess.run(
+                command, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=15, check=False,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+            raise DeviceEvidenceError("ADB access probe unavailable, timed out or failed") from exc
+        if len(response.stdout) + len(response.stderr) > 10_000:
+            raise DeviceEvidenceError("ADB access probe output exceeds limit")
+        outcome = classify_access(
+            response.returncode, response.stdout, response.stderr, operation
+        )
+        result[label] = {"path": path, "operation": operation, "status": outcome}
+        if label == "vendor_modules_link" and outcome == "metadata_visible":
+            link_to_dlkm = " -> /vendor_dlkm/lib/modules" in response.stdout
+    return {
+        "paths": result,
+        "vendor_modules_link_to_vendor_dlkm_observed": link_to_dlkm,
+        "no_access_is_not_evidence_of_absence": True,
+        "actual_module_source_or_abi_verified": False,
+    }
+
+
 def collect(serial=None):
     if adb(["get-state"], serial) != "device":
         raise DeviceEvidenceError("ADB device is not authorized and online")
@@ -144,6 +206,7 @@ def collect(serial=None):
     if not re.fullmatch(r"[A-Za-z0-9._+\-]{1,128}", kernel_release):
         raise DeviceEvidenceError("Unexpected kernel release")
     wlan, warnings = parse_wlan_probe(adb(["shell", REMOTE_WLAN_PROBE], serial))
+    wlan["access_diagnostics"] = probe_fixed_paths(serial)
     if not actual["crdroid_version"].startswith("17"):
         warnings.append("crDroid Android platform property is not 17.x; verify exact ROM")
     if not actual["crdroid_build_version"].startswith("13"):
@@ -153,7 +216,14 @@ def collect(serial=None):
     if actual["active_slot"] not in ("_a", "_b"):
         warnings.append("Active A/B slot not verified")
     if not wlan["visible_wlan_modules"]:
-        warnings.append("No WLAN .ko in visible paths; this does NOT establish module absence")
+        denied = any(
+            p["status"] == "permission_denied"
+            for p in wlan["access_diagnostics"]["paths"].values()
+        )
+        if denied:
+            warnings.append("WLAN access denied for at least one path; no visibility is not absence")
+        else:
+            warnings.append("No WLAN .ko in visible paths; this does NOT establish module absence")
     return {
         "schema": SCHEMA,
         "target_device": "hotdog",

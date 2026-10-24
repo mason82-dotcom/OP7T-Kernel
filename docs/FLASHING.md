@@ -81,6 +81,10 @@ The new `scripts/device-evidence.py` uses Python 3 and `adb` (Android Platform T
 
 The file is ignored by Git and will **not** be overwritten. The device guard recognizes both `hotdog` and its stock/OEM `OnePlus7TPro` property alias, but NOT `hotdogg` / 5G McLaren. This is only an inventory guard, not a device identity or boot image certification. No ADB root, file pull/push, or flashing occurs. Missing/inaccessible WLAN modules are not evidence of absence. Kernel-signing key trust, verified original boot images, vendor module symbol ABI and device hardware acceptance remain open.
 
+## WLAN module access uncertainty
+
+On an actual OnePlus 7T Pro, `/vendor/lib/modules` can point at `/vendor_dlkm/lib/modules`. The ADB shell can report `Permission denied` for `qca_cld3_wlan.ko` while `/proc/modules` still lists `wlan`. The Python evidence script now preserves file metadata and sysfs access outcomes separately. `not_found_in_this_path` does not establish absence from other paths, and `metadata_visible` does not prove module readability, key trust, load success, or ABI. **Never disable SELinux or module-signature enforcement just to get a passing audit.**
+
 ## Required tests before any real flash
 
 1. Compile and compare `baseline`, `core` and (optionally) `external` on an isolated builder; inspect all failures.
