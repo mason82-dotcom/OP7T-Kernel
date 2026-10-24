@@ -121,6 +121,12 @@ Once the original `wlan.ko` has been extracted from the **exact installed ROM**,
 
 The script compares module name, complete `vermagic`, signer, signature key ID and hash algorithm. A mismatch is a blocker; matching values still **do not prove kernel key trust, ABI compatibility, device bootability or NetHunter readiness**. It never writes to or modifies the phone.
 
+## Partial artifact ZIP intake
+
+For a downloaded raw artifact export, run `python3 scripts/inspect-artifact-zip.py /path/to/files.zip` before using any contained modules. The tool checks every present member against `SHA256SUMS`, checks flat exported `.ko` filenames against their full paths, sizes and hashes in `artifact-report.json`, and lists manifest entries absent from a partial export. Use `--require-complete` when a complete artifact set is required (exit 4 for missing entries). Integrity of exported members does not authenticate the build, verify module signatures, prove installed ROM ABI or create a flashable package. Do not install the exported modules directly.
+
+The 25 October partial `files(1).zip` contains signed-trailer `wlan.ko` and `gspca_main.ko` with matching reported hashes and vermagic. Its manifest lists 28 additional files that are **not** in that ZIP, including `Image`, `Module.symvers`, config and DTBs. The extracted modules are evidence for offline inspection only. Their cryptographic signature and trust by the phone remain unverified.
+
 ## Offline ARM64 module ABI triage
 
 [Read-only ABI audit](docs/MODULE_ABI_AUDIT.md) checks `__versions` symbol CRCs, `.modinfo`, dependencies and signature trailer presence in the built and exact-ROM `wlan.ko` / `qca_cld3_wlan.ko` and `gspca_main.ko`. Supplying `Module.symvers` improves coverage but does not prove ABI or signature trust. `--fail-on-unknown` distinguishes unresolved evidence from a passing comparison. Build outputs, signed or unsigned, remain **NOT FLASHABLE**.
