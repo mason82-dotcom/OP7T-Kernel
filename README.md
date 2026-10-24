@@ -4,6 +4,8 @@ This repository is the **build and patch workspace** for the **OnePlus 7T Pro (`
 
 **Status: experimental source scaffolding. NOT FLASHABLE.** No boot image, tested NetHunter injection patch, correctly signed rebuilt vendor modules or validated hardware build has been produced.
 
+> Build reference: [crDroid 13 / Android 17 source and kernel alignment](docs/CRDROID_17_BUILD_REFERENCE.md). The official manifest/`brunch` instructions are for full ROM builds; this project remains standalone and **not flashable**.
+
 ## Verified basis
 
 - crDroid **v13.0 = Android 17**. **Android 13 was crDroid v9**, and using its old `13.0` AOSP branch here would be incorrect.
