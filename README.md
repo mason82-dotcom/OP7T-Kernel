@@ -45,6 +45,10 @@ With USB debugging enabled and adb available, run `bash scripts/device-audit.sh`
 
 LLVM toolchain note: older Qualcomm Kbuild may invoke unsuffixed `llvm-nm` and `llvm-ar`, even if `AR=llvm-ar-14` and `NM=llvm-nm-14` were specified. `scripts/build.sh` now prepends `/usr/lib/llvm-14/bin` when using `clang-14`, or accepts `LLVM_TOOLCHAIN_BIN` explicitly.
 
+## Read-only installed-ROM module inventory
+
+On the Android 17 / crDroid 13 **hotdog**, run `bash scripts/device-module-audit.sh` (optionally with `--serial ADB_SERIAL`). It performs the existing strict device preflight, prints the public build and vendor fingerprints, Android security patch information and available `wlan.ko` module filenames/hash values from normal ADB-readable locations. This uses **no root or write operations**; missing filenames mean only that the paths were not visible, not that the WLAN driver does not exist. It cannot verify kernel key trust, module ABI or flash compatibility.
+
 ## Artifact compatibility audit
 
 At the end of a successful kernel build `scripts/audit-artifacts.py` checks the raw ARM64 Image magic, all DTBs, the pinned source commit, expected Kconfig safety constraints, and the presence of rebuilt kernel modules. It records each module's `modinfo` vermagic, signer, signature key ID, algorithm and hashes in `artifact-report.json`, verifies that all captured modules match the just-built `kernel.release` and requires an actual Qualcomm `wlan.ko` (or `qca_cld3_wlan.ko`). `Module.symvers`, `modules.order` and `System.map` are retained when generated for offline ABI investigation. It cannot assert trusted keys for the installed ROM; the report's `flash_ready` remains `false` by design. A missing module signer is recorded, **not** worked around. Any failure prevents publication of seemingly complete build artifacts.

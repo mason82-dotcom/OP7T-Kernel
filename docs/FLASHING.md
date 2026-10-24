@@ -65,6 +65,10 @@ The device board configuration declares `BOARD_BOOT_HEADER_VERSION=2`, `BOARD_KE
 
 The script validates the **v2 structure only**: ARM64 Image magic, embedded FDT magic, section size, offsets and SHA-256. It prints bounded JSON and neither extracts nor modifies the input. If the ROM differs from board assumptions, fail and investigate; **do not** force it to pass, and do not flash any generated output. This is not a verified repack, AVB check, device-slot check or compatibility sign-off.
 
+## Live ROM inventory without root
+
+After USB debugging has been authorized on the **OnePlus 7T Pro hotdog**, run `bash scripts/device-module-audit.sh` from a machine with Android Platform Tools. The command repeats `scripts/device-audit.sh` and prints the ROM and vendor fingerprints, Android security patch, verified-boot state and ADB-readable module paths. If `wlan.ko` is readable, the device calculates its SHA-256 without uploading the original binary or writing to the phone. Nonstandard or inaccessible paths are recorded as **unknown**, not absence. It cannot obtain the private signing key, verify ABI or imply boot compatibility.
+
 ## Required tests before any real flash
 
 1. Compile and compare `baseline`, `core` and (optionally) `external` on an isolated builder; inspect all failures.
