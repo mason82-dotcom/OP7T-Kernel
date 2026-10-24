@@ -47,6 +47,11 @@ def fake_run(command, **kwargs):
         result = "4.14.357-perf\n"
     elif len(tail) == 2 and tail[0] == "shell" and "WLAN" not in tail[1]:
         result = PROBE
+    elif tail == ["shell", "ls", "-1", "/vendor_dlkm/lib/modules"]:
+        result = (
+            "modules.alias\nmodules.dep\nmodules.load\nmodules.softdep\n"
+            "gspca_main.ko\nqca_cld3_wlan.ko\nmalicious_or_unknown_file\n"
+        )
     elif len(tail) == 4 and tail[:3] == ["shell", "ls", "-ld"]:
         path = tail[3]
         if path == "/vendor/lib/modules":
@@ -72,6 +77,48 @@ def fake_run(command, **kwargs):
 
 
 class EvidenceTests(unittest.TestCase):
+    @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
+    def test_directory_entry_visible_even_when_stat_denied(self, run):
+        report = MODULE.collect()
+        entry = report["wlan"]["vendor_dlkm_directory_entries"]
+        self.assertEqual("names_visible", entry["enumeration_status"])
+        self.assertTrue(entry["qca_cld3_wlan_entry_name_visible"])
+        self.assertEqual(
+            ["gspca_main.ko", "modules.alias", "modules.dep", "modules.load",
+             "modules.softdep", "qca_cld3_wlan.ko"],
+            entry["whitelisted_entry_names"],
+        )
+        self.assertFalse(entry["inode_metadata_or_file_content_verified"])
+        self.assertFalse(entry["module_signature_or_abi_verified"])
+        self.assertEqual(
+            "permission_denied",
+            report["wlan"]["access_diagnostics"]["paths"]["wlan_vendor_alias"]["status"],
+        )
+        self.assertFalse(report["flash_ready"])
+
+    @patch.object(
+        MODULE.subprocess, "run",
+        return_value=subprocess.CompletedProcess(
+            [], 1, "", "ls: Permission denied"
+        ),
+    )
+    def test_directory_enumeration_denied_is_unknown_not_absent(self, run):
+        evidence = MODULE.probe_vendor_dlkm_entry_names()
+        self.assertEqual("permission_denied", evidence["enumeration_status"])
+        self.assertFalse(evidence["qca_cld3_wlan_entry_name_visible"])
+        self.assertEqual([], evidence["whitelisted_entry_names"])
+        self.assertFalse(evidence["module_signature_or_abi_verified"])
+
+    @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
+    def test_directory_list_probe_only_reads_fixed_path(self, run):
+        MODULE.probe_vendor_dlkm_entry_names("device-123:5555")
+        self.assertEqual(1, len(run.call_args_list))
+        self.assertEqual(
+            ["adb", "-s", "device-123:5555",
+             "shell", "ls", "-1", "/vendor_dlkm/lib/modules"],
+            run.call_args_list[0].args[0],
+        )
+
     @patch.object(MODULE.subprocess, "run", side_effect=fake_run)
     def test_real_device_style_access_denial_is_not_absence(self, run):
         report = MODULE.collect()

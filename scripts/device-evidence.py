@@ -189,6 +189,48 @@ def probe_fixed_paths(serial=None):
     }
 
 
+# Narrow allowlist: only names, never raw module binaries, scripts or metadata.
+VENDOR_DLKM_ENTRY_NAMES = frozenset((
+    "qca_cld3_wlan.ko", "wlan.ko", "gspca_main.ko",
+    "modules.alias", "modules.dep", "modules.load", "modules.softdep",
+))
+
+
+def probe_vendor_dlkm_entry_names(serial=None):
+    """Read-only readdir test; file names may be visible when stat() is denied."""
+    command = ["adb"]
+    if serial is not None:
+        if not SERIAL.fullmatch(serial):
+            raise DeviceEvidenceError("Invalid ADB serial syntax")
+        command.extend(["-s", serial])
+    command.extend(["shell", "ls", "-1", "/vendor_dlkm/lib/modules"])
+    try:
+        response = subprocess.run(
+            command, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=15, check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        raise DeviceEvidenceError("ADB directory enumeration unavailable or timed out") from exc
+    if len(response.stdout) + len(response.stderr) > 10_000:
+        raise DeviceEvidenceError("ADB directory listing exceeds safe limit")
+    outcome = classify_access(
+        response.returncode, response.stdout, response.stderr, "ls"
+    )
+    visible = (
+        sorted(VENDOR_DLKM_ENTRY_NAMES.intersection(response.stdout.splitlines()))
+        if response.returncode == 0 and outcome == "metadata_visible"
+        else []
+    )
+    return {
+        "directory": "/vendor_dlkm/lib/modules",
+        "enumeration_status": "names_visible" if outcome == "metadata_visible" else outcome,
+        "whitelisted_entry_names": visible,
+        "qca_cld3_wlan_entry_name_visible": "qca_cld3_wlan.ko" in visible,
+        "inode_metadata_or_file_content_verified": False,
+        "module_signature_or_abi_verified": False,
+    }
+
+
 def collect(serial=None):
     if adb(["get-state"], serial) != "device":
         raise DeviceEvidenceError("ADB device is not authorized and online")
@@ -207,6 +249,7 @@ def collect(serial=None):
         raise DeviceEvidenceError("Unexpected kernel release")
     wlan, warnings = parse_wlan_probe(adb(["shell", REMOTE_WLAN_PROBE], serial))
     wlan["access_diagnostics"] = probe_fixed_paths(serial)
+    wlan["vendor_dlkm_directory_entries"] = probe_vendor_dlkm_entry_names(serial)
     if not actual["crdroid_version"].startswith("17"):
         warnings.append("crDroid Android platform property is not 17.x; verify exact ROM")
     if not actual["crdroid_build_version"].startswith("13"):
@@ -220,7 +263,12 @@ def collect(serial=None):
             p["status"] == "permission_denied"
             for p in wlan["access_diagnostics"]["paths"].values()
         )
-        if denied:
+        if wlan["vendor_dlkm_directory_entries"]["qca_cld3_wlan_entry_name_visible"]:
+            warnings.append(
+                "WLAN module entry name visible in vendor_dlkm, but file metadata/content inaccessible; "
+                "signature and ABI remain unknown"
+            )
+        elif denied:
             warnings.append("WLAN access denied for at least one path; no visibility is not absence")
         else:
             warnings.append("No WLAN .ko in visible paths; this does NOT establish module absence")
