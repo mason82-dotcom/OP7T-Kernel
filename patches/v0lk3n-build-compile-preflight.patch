@@ -39,3 +39,63 @@ diff --git a/scripts/Makefile.lib b/scripts/Makefile.lib
  # Disable noisy checks by default
  ifeq ($(KBUILD_ENABLE_EXTRA_GCC_CHECKS),)
  DTC_FLAGS += -Wno-unit_address_vs_reg \
+diff --git a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c
+--- a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c
++++ b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c
+@@ -173,37 +173,27 @@
+  * Return: QDF_STATUS_SUCCESS if authorized, error code otherwise
+  */
+ QDF_STATUS hdd_check_injection_capability(struct task_struct *task)
+ {
+-	const struct cred *cred;
+-	bool has_capability = false;
+-
+-	hdd_security_debug("Checking injection capabilities");
+-
+-	/* Use current task if none specified */
+-	if (!task)
+-		task = current;
+-
+-	/* Get task credentials */
+-	cred = get_task_cred(task);
+-	if (!cred) {
+-		hdd_security_err("Failed to get task credentials");
+-		return QDF_STATUS_E_FAILURE;
+-	}
+-
+-	/* Check for CAP_NET_RAW capability */
+-	has_capability = capable(CAP_NET_RAW);
+-	
+-	put_cred(cred);
+-
+-	if (!has_capability) {
+-		hdd_security_warn("Process lacks CAP_NET_RAW capability (PID: %d, UID: %d)",
+-				  task->pid, from_kuid(&init_user_ns, task_uid(task)));
+-		return QDF_STATUS_E_PERM;
+-	}
+-
+-	hdd_security_debug("Process has required capabilities (PID: %d, UID: %d)",
+-			   task->pid, from_kuid(&init_user_ns, task_uid(task)));
++	hdd_security_debug("Checking injection capabilities");
++
++	/*
++	 * capable() checks the caller's credentials, not an arbitrary task.
++	 * Reject requests for another task rather than incorrectly authorizing
++	 * them using the capabilities of the calling process.
++	 */
++	if (task && task != current) {
++		hdd_security_warn("Frame injection capability checks require the current task");
++		return QDF_STATUS_E_PERM;
++	}
++
++	/* Preserve the CAP_NET_RAW gate; do not export internal cred symbols. */
++	if (!capable(CAP_NET_RAW)) {
++		hdd_security_warn("Process lacks CAP_NET_RAW capability");
++		return QDF_STATUS_E_PERM;
++	}
++
++	hdd_security_debug("Process has required CAP_NET_RAW capability");
+ 	return QDF_STATUS_SUCCESS;
+ }
+ 
+ /**
