@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 PIN = "1083c6c5906114c71b11a429898b111a1b1b8109"
+ROM_PIN = "57037290bb57caefd3c337db3511fca5751fb4ef"
 ROOT = Path(__file__).resolve().parents[1]
 # Only this ICNSS/HELIUMPLUS object is compiled by the pinned hotdog config.
 # The source-applicable VDEV/LITHIUM candidate is NOT compiled or selected.
@@ -114,10 +115,47 @@ def wlan_module_metadata(artifacts, report, expected_sha=PIN):
     }
 
 
+def rom_source_parity(artifacts, expected_patch_hash):
+    """Demand the separate exact-parent/child read-only gate before claiming ROM source build."""
+    path = artifacts / "wlan-rom-source-parity.json"
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+        raise AttestationError("ROM-source parity report absent, linked or oversized")
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError, UnicodeError) as exc:
+        raise AttestationError("Unparseable ROM-source parity report") from exc
+    if not isinstance(report, dict):
+        raise AttestationError("Wrong ROM-source parity report type")
+    chosen = report.get("selected_patch")
+    if not isinstance(chosen, dict):
+        raise AttestationError("ROM-source parity patch selection missing")
+    from_pin = report.get("parent_sha") == PIN
+    to_pin = report.get("rom_source_sha") == ROM_PIN
+    if not (report.get("schema") == "hotdog-wlan-rom-source-parity-v1"
+            and from_pin and to_pin
+            and report.get("source_equivalence_verified") is True
+            and report.get("flash_ready") is False
+            and report.get("rom_module_abi_verified") is False
+            and report.get("rom_signing_key_trust_verified") is False
+            and chosen.get("path") == PATCHES[0]
+            and chosen.get("sha256") == expected_patch_hash
+            and chosen.get("apply_check_parent") is True
+            and chosen.get("apply_check_rom_source") is True
+            and chosen.get("applied") is False):
+        raise AttestationError("ROM-source parity did not pass exact safe policy gates")
+    return {
+        "parity_report_sha256": sha256_file(path),
+        "parent_sha": PIN,
+        "child_sha": ROM_PIN,
+        "wlan_source_parity_verified": True,
+        "installed_binary_identity_verified": False,
+    }
+
+
 def attest(out, artifacts, project=ROOT, expected_sha=PIN):
     out, artifacts, project = (Path(p).resolve(strict=True)
                                for p in (out, artifacts, project))
-    if expected_sha != PIN:
+    if expected_sha not in (PIN, ROM_PIN):
         raise AttestationError("Unapproved source SHA")
     if not out.is_dir() or not artifacts.is_dir():
         raise AttestationError("Expected separated build and artifact directories")
@@ -133,19 +171,29 @@ def attest(out, artifacts, project=ROOT, expected_sha=PIN):
         if path.is_symlink() or not path.is_file():
             raise AttestationError("Unapproved or missing patch")
         patches.append({"path": rel, "sha256": sha256_file(path)})
+    parity = None
+    if expected_sha == ROM_PIN:
+        parity = rom_source_parity(artifacts, patches[0]["sha256"])
     return {
-        "schema": "hotdog-wlan-icnss-compile-attestation-v3",
+        "schema": "hotdog-wlan-icnss-compile-attestation-v4",
+        "source_pin_role": ("observed_rom_release_source_candidate"
+                            if expected_sha == ROM_PIN else "original_experiment"),
+        "source_parity": parity,
+        "original_parent_sha": PIN,
         "selected_driver_family": "ICNSS_HELIUMPLUS",
         "inactive_lithium_patch": {"path": INACTIVE_LITHIUM_PATCH,
             "applied": False, "compiled": False,
             "reason": "CONFIG_LITHIUM objects excluded by pinned hotdog build"},
-        "upstream_sha": PIN,
+        "upstream_sha": expected_sha,
         "profile": "core",
         "patches": patches,
         "compiled_modified_translation_units": objects,
         "all_modified_translation_units_compiled": True,
         "wlan_module": wlan,
         "module_elf_audited": True,
+        "installed_rom_kernel_binary_identical": False,
+        "observed_rom_kernel_release_verified": False,
+        "rfc_behavioral_equivalence_verified": False,
         "rom_kernel_symbol_crc_compatible": False,
         "installed_rom_module_abi_verified": False,
         "signer_trust_on_installed_rom_verified": False,
