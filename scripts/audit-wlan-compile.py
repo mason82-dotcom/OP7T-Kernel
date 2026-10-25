@@ -13,13 +13,15 @@ from pathlib import Path
 
 PIN = "1083c6c5906114c71b11a429898b111a1b1b8109"
 ROOT = Path(__file__).resolve().parents[1]
+# Only this ICNSS/HELIUMPLUS object is compiled by the pinned hotdog config.
+# The source-applicable VDEV/LITHIUM candidate is NOT compiled or selected.
 PATCHES = (
-    "patches/qcacld-3.0/0001-monitor-vdev-null-and-error-guards.patch",
     "patches/candidates/0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch",
 )
+INACTIVE_LITHIUM_PATCH = (
+    "patches/qcacld-3.0/0001-monitor-vdev-null-and-error-guards.patch"
+)
 EXPECTED_OBJECTS = (
-    "drivers/staging/qca-wifi-host-cmn/dp/wifi3.0/dp_main.o",
-    "drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.o",
     "drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.o",
 )
 ELF_HASH = re.compile(r"^[a-f0-9]{64}$")
@@ -38,7 +40,7 @@ def sha256_file(path):
 
 
 def compiled_objects(out):
-    """Require genuine, nonempty .o for *every* modified C translation unit."""
+    """Require nonempty .o for the selected ICNSS C translation unit."""
     out = Path(out)
     found = []
     for relative in EXPECTED_OBJECTS:
@@ -132,7 +134,11 @@ def attest(out, artifacts, project=ROOT, expected_sha=PIN):
             raise AttestationError("Unapproved or missing patch")
         patches.append({"path": rel, "sha256": sha256_file(path)})
     return {
-        "schema": "hotdog-wlan-experimental-compile-attestation-v2",
+        "schema": "hotdog-wlan-icnss-compile-attestation-v3",
+        "selected_driver_family": "ICNSS_HELIUMPLUS",
+        "inactive_lithium_patch": {"path": INACTIVE_LITHIUM_PATCH,
+            "applied": False, "compiled": False,
+            "reason": "CONFIG_LITHIUM objects excluded by pinned hotdog build"},
         "upstream_sha": PIN,
         "profile": "core",
         "patches": patches,
@@ -163,7 +169,7 @@ def main():
         with target.open("x", encoding="utf-8") as stream:
             json.dump(report, stream, indent=2, sort_keys=True)
             stream.write("\n")
-        print("Isolated WLAN compile: three modified C objects and signed/stripped wlan.ko verified; flash_ready=false")
+        print("Isolated WLAN compile: selected ICNSS RX object and signed/stripped wlan.ko verified; flash_ready=false")
         return 0
     except (AttestationError, OSError, UnicodeError) as e:
         print("WLAN COMPILE ATTESTATION BLOCKED: " + str(e), file=sys.stderr)
