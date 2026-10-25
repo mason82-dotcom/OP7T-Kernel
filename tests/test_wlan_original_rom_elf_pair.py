@@ -45,7 +45,7 @@ class RomWlanBinaryPairTests(unittest.TestCase):
         )
         self.base.compiled["wlan_module"]["sha256"] = self.base.sha()
         self.base.compiled["wlan_module"]["vermagic"] = (
-            BUILT_RELEASE + " SMP modversions"
+            PAIR.ABI.inspect(self.base.module)["vermagic"]
         )
         self.original = self.root / "qca_cld3_wlan.ko"
         self.original.write_bytes(
