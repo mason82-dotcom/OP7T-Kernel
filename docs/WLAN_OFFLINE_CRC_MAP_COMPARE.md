@@ -22,7 +22,45 @@ GitHub Actions run [40192859423](https://github.com/mason82-dotcom/OP7T-Kernel/a
 
 The successful CI run validates the originally uploaded map/export code. Subsequent comparison-validator changes on this draft require their own CI; do not present them as verified by that earlier run.
 
-## Pi 5 commands for the verified artifact
+## Most recent verified CI metadata (2026-10-25)
+
+The follow-up CI [#40200848625](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40200848625) completed successfully at head `6356455b0247f920e5d00f183bea3e9f9415efb5` after comparator hardening and regression tests. Its uploaded artifact `hotdog-wlan-rom-source-compile-40200848625` (ID `12603160028`) has verified GitHub-published **ZIP SHA-256 `57fdb33ce7d94fc9ed02abbaf8e3622301b2a6aea0119af7efae0a7303b0e432`**. The ZIP contains exactly nine CI metadata/config records and **394 rebuilt WLAN import CRCs**, with map digest `5be84eb4c650a905ad50bffcee3bef66778d7322b55a46a3589cb409c8bfd5cc`.
+
+The previously recorded original OTA ELF's canonical CRC-map digest is `c45d949ad0cfb368620f6178cbb334c51566932da961862785f8374ce86d7ed4`. The digests differ. If generated using the same canonicalization this demonstrates non-identical maps, **but does not reveal which imported symbols differ or whether there are count/name differences**. The exact local OTA ELF must be reparsed before reporting mismatch counts. The known `-dirty` vermagic discrepancy is still present.
+
+### Single-ZIP, fail-closed host comparison (additional unmerged code)
+
+`scripts/compare-wlan-ci-archive-to-rom.py` checks the exact ZIP SHA-256 **before any member is read**, accepts only the nine declared regular files, prevents ZIP symlinks, unexpected names and decompression-size overrun, and verifies basic internal source/module metadata before passing three bounded JSON records to the existing ELF CRC comparator. It separately requires the independently recorded original ELF SHA-256 and its CRC map SHA-256. No downloaded ZIP entry is extracted to an arbitrary destination; only allowlisted metadata are staged in a temporary directory.
+
+```bash
+cd ~/Projekte/OP7T-Kernel-PR40-Test
+git fetch --no-tags origin research/hotdog-wlan-offline-crc-map-compare
+git switch --detach FETCH_HEAD
+
+mkdir -p .work/ci-rom-pinned-crcs .work/device-evidence
+gh api --method GET \
+  repos/mason82-dotcom/OP7T-Kernel/actions/artifacts/12603160028/zip \
+  > .work/ci-rom-pinned-crcs/hotdog-wlan-rom-source-compile-40200848625.zip
+
+echo "57fdb33ce7d94fc9ed02abbaf8e3622301b2a6aea0119af7efae0a7303b0e432  .work/ci-rom-pinned-crcs/hotdog-wlan-rom-source-compile-40200848625.zip" \
+  | sha256sum --check
+
+set -o pipefail
+python3 scripts/compare-wlan-ci-archive-to-rom.py \
+  --ci-zip .work/ci-rom-pinned-crcs/hotdog-wlan-rom-source-compile-40200848625.zip \
+  --ci-zip-sha256 57fdb33ce7d94fc9ed02abbaf8e3622301b2a6aea0119af7efae0a7303b0e432 \
+  --original-rom-wlan .work/device-evidence/qca_cld3_wlan.ko \
+  --original-rom-sha256 be1a5db188d53d0510df9ad320a31aaf2c1b92662cab7dac4810513477d25924 \
+  --original-rom-crc-map-sha256 c45d949ad0cfb368620f6178cbb334c51566932da961862785f8374ce86d7ed4 \
+  | tee .work/device-evidence/rom-vs-pinned-build-ci-zip-crcs.json
+printf 'Offline CRC ZIP comparison exit: %s\n' "${PIPESTATUS[0]}"
+```
+
+The supplied source checkout must include the new comparison script. This newer wrapper is experimental until its own branch CI passes; the successful run #40200848625 validates the earlier CRC exporter and comparator. A byte-exact ZIP download is required: if the SHA check fails, stop and do **not** disable the guard.
+
+Exit code `2`: known compatibility mismatch; `3`: insufficient/invalid evidence; `4`: no mismatch detected within this narrow symbol check, but physical safety/trust unknown. There is intentionally **no success exit code**. All outputs keep `flash_ready=false`. Do not flash, alter AVB, or install/force-load modules on these findings.
+
+## Earlier extracted-metadata workflow (alternative)
 
 ```bash
 cd ~/Projekte/OP7T-Kernel-PR40-Test
