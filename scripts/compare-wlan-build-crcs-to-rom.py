@@ -92,6 +92,8 @@ def compare(original_module, expected_original_sha256, built_map_file, compiled_
             or built.get("rebuilt_wlan_module_sha256") != wm.get("sha256")
             or built.get("rebuilt_Module_symvers_sha256") != selfcheck.get("built_Module_symvers_sha256")
             or built.get("kernel_release") != selfcheck.get("kernel_release")
+            or built.get("imported_symbol_count") != selfcheck.get("built_module_symbols_versioned")
+            or built.get("imported_symbol_count") != selfcheck.get("matched_against_same_build_Module_symvers")
             or wm.get("vermagic", "").split(" ")[0] != built.get("kernel_release")
             or not HEX_SHA.fullmatch(str(built.get("rebuilt_wlan_module_sha256", "")))):
         raise ValueError("Build CRC export does not bind to supplied same-run CI evidence")
