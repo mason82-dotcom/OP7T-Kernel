@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -155,9 +156,73 @@ def inspect_sources(wlan, dev, kbuild, profile, patch):
     }
 
 
+def checked_git(kernel, *args):
+    try:
+        return subprocess.run(
+            ["git", "-C", str(kernel), *args], check=True,
+            capture_output=True, text=True, timeout=20,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        raise ContextAuditError("Pinned source Git verification failed") from None
+
+
 def audit(kernel, project=ROOT):
     kernel = Path(kernel).resolve(strict=True)
     project = Path(project).resolve(strict=True)
+    if checked_git(kernel, "rev-parse", "HEAD") != PIN:
+        raise ContextAuditError("Not the immutable pinned hotdog kernel source")
+    if checked_git(kernel, "status", "--porcelain"):
+        raise ContextAuditError("Original source checkout was modified")
+    board = (kernel / "arch/arm64/configs/vendor/sm8150-perf_defconfig").read_text(
+        encoding="utf-8"
+    )
+    oplus = (kernel / "arch/arm64/configs/vendor/oplus.config").read_text(
+        encoding="utf-8"
+    )
+    if not re.search(r"^CONFIG_ICNSS=y$", board, re.MULTILINE):
+        raise ContextAuditError("Pinned hotdog defconfig no longer selects ICNSS")
+    if (not re.search(r"^CONFIG_QCA_CLD_WLAN=m$", oplus, re.MULTILINE) or
+            not re.search(r'^CONFIG_QCA_CLD_WLAN_PROFILE="default"
+    if original.is_symlink() or not original.is_file():
+        raise ContextAuditError("Missing or linked approved RFC patch")
+    files = {}
+    for name in (WLAN_PATH, DEV_PATH, KBUILD_PATH, PROFILE_PATH):
+        item = kernel / name
+        if not item.is_file() or item.is_symlink():
+            raise ContextAuditError("Pinned kernel source input unavailable")
+        files[name] = item.read_text(encoding="utf-8")
+    patch = original.read_text(encoding="utf-8")
+    report = inspect_sources(
+        files[WLAN_PATH], files[DEV_PATH], files[KBUILD_PATH],
+        files[PROFILE_PATH], patch,
+    )
+    report["source_sha256"] = {
+        name: hashlib.sha256(content.encode("utf-8")).hexdigest()
+        for name, content in files.items()
+    }
+    report["rfc_patch_sha256"] = hashlib.sha256(patch.encode("utf-8")).hexdigest()
+    report["original_checkout_verified_clean_and_pinned"] = True
+    return report
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--kernel", type=Path, required=True)
+    args = parser.parse_args()
+    try:
+        report = audit(args.kernel)
+    except (OSError, UnicodeError, ContextAuditError) as e:
+        print("RX SOFTIRQ STATIC AUDIT BLOCKED: " + str(e), file=sys.stderr)
+        return 2
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+,
+                          oplus, re.MULTILINE)):
+        raise ContextAuditError("Pinned hotdog vendor WLAN build profile changed")
     original = project / PATCH_PATH
     if original.is_symlink() or not original.is_file():
         raise ContextAuditError("Missing or linked approved RFC patch")
