@@ -64,12 +64,28 @@ class WlanCompilationEvidenceTests(unittest.TestCase):
     def test_attested_compiler_objects_and_signed_wlan_remain_unflashable(self):
         result = AUDIT.attest(self.out, self.art)
         self.assertTrue(result["all_modified_translation_units_compiled"])
-        self.assertEqual(3, len(result["compiled_modified_translation_units"]))
+        self.assertEqual(1, len(result["compiled_modified_translation_units"]))
+        self.assertEqual("ICNSS_HELIUMPLUS", result["selected_driver_family"])
+        self.assertFalse(result["inactive_lithium_patch"]["applied"])
+        self.assertFalse(result["inactive_lithium_patch"]["compiled"])
+        self.assertEqual(1, len(result["patches"]))
         self.assertTrue(result["module_elf_audited"])
         self.assertEqual(self.module["sha256"], result["wlan_module"]["sha256"])
         self.assertFalse(result["flash_ready"])
         self.assertFalse(result["rom_kernel_symbol_crc_compatible"])
         self.assertFalse(result["signer_trust_on_installed_rom_verified"])
+
+    def test_inactive_lithium_patch_not_selected_or_claimed_compiled(self):
+        self.assertEqual(1, len(AUDIT.EXPECTED_OBJECTS))
+        self.assertEqual(1, len(AUDIT.PATCHES))
+        self.assertEqual(
+            "drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.o",
+            AUDIT.EXPECTED_OBJECTS[0],
+        )
+        self.assertNotIn(AUDIT.INACTIVE_LITHIUM_PATCH, AUDIT.PATCHES)
+        data = AUDIT.attest(self.out, self.art)
+        self.assertFalse(data["inactive_lithium_patch"]["applied"])
+        self.assertFalse(data["inactive_lithium_patch"]["compiled"])
 
     def test_each_missing_compiler_object_rejected(self):
         for name in AUDIT.EXPECTED_OBJECTS:

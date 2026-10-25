@@ -24,6 +24,20 @@ class WlanIsolatedBuildTests(unittest.TestCase):
         self.assertIn('actual_paths="$(git -C "$EXP_TREE" diff --name-only)"', BUILD)
         self.assertIn('[[ "$actual_paths" == "$expected_paths" ]]', BUILD)
 
+    def test_hotdog_only_modifies_active_icnss_source(self):
+        self.assertIn(
+            "expected_paths='drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.c'",
+            BUILD,
+        )
+        self.assertNotIn(
+            '"$ROOT/patches/qcacld-3.0/0001-monitor-vdev-null-and-error-guards.patch"',
+            BUILD,
+        )
+        self.assertIn(
+            '"$ROOT/patches/candidates/0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch"',
+            BUILD,
+        )
+
     def test_experimental_output_is_separate(self):
         self.assertIn('OUT="$ROOT/.work/out-wlan-$PROFILE"', BUILD)
         self.assertIn('ART="$ROOT/.work/artifacts/wlan-$PROFILE"', BUILD)
