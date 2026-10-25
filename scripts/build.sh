@@ -227,6 +227,11 @@ if [[ "${WLAN_PATCH_EXPERIMENT:-0}" == 1 ]]; then
   python3 "$ROOT/scripts/audit-wlan-compile.py" \
     --out "$OUT" --artifacts "$ART" --expected-sha "$UPSTREAM_SHA"
 fi
+# Checks only rebuilt ELF imports against its own generated Module.symvers.
+# Not installed ROM ABI, signing trust, firmware or runtime verification.
+if [[ "${WLAN_ROM_PIN_EXPERIMENT:-0}" == 1 ]]; then
+  python3 "$ROOT/scripts/audit-wlan-built-crcs.py" --artifacts "$ART"
+fi
 (
   cd "$ART"
   find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 -r sha256sum > SHA256SUMS
