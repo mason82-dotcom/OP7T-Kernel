@@ -22,12 +22,12 @@ class V0lk3nDTBOTests(unittest.TestCase):
             root = Path(directory)
             file = root / "dtbos" / "arch/arm64/boot/dts/19801/hotdog.dtbo"
             file.parent.mkdir(parents=True)
-            file.write_bytes(bytes.fromhex("d00dfeed") + (40).to_bytes(4, "big") + b"\\0" * 32)
+            file.write_bytes(bytes.fromhex("d00dfeed") + (40).to_bytes(4, "big") + bytes(32))
             self.assertEqual(collect_dtbo_files(root, True), [file])
-            file.write_bytes(bytes.fromhex("d00dfeed") + (400).to_bytes(4, "big") + b"\\0" * 32)
+            file.write_bytes(bytes.fromhex("d00dfeed") + (400).to_bytes(4, "big") + bytes(32))
             with self.assertRaisesRegex(ValueError, "Invalid DTBO"):
                 collect_dtbo_files(root, True)
-            file.write_bytes(b"not-an-fdt" + b"\\0" * 40)
+            file.write_bytes(b"not-an-fdt" + bytes(40))
             with self.assertRaisesRegex(ValueError, "Invalid DTBO"):
                 collect_dtbo_files(root, True)
 
