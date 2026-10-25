@@ -1,7 +1,7 @@
 # crDroid 13 = Android 17, not Android 13.
 UPSTREAM_URL=https://github.com/crdroidandroid/android_kernel_oneplus_sm8150.git
 UPSTREAM_REF=17.0
-UPSTREAM_SHA=1083c6c5906114c71b11a429898b111a1b1b8109
+UPSTREAM_SHA=57037290bb57caefd3c337db3511fca5751fb4ef
 DEVICE=hotdog
 ROM_ANDROID=17
 ROM_CRDROID=13
