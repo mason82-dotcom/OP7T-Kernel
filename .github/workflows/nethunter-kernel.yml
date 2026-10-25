@@ -191,7 +191,7 @@ jobs:
           retention-days: 7
 
   build:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref != 'research/hotdog-monitor-rx-softirq-context' && github.head_ref != 'experiment/hotdog-wlan-observed-rom-compile' && github.head_ref != 'research/hotdog-wlan-built-crc-selfcheck')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref != 'research/hotdog-monitor-rx-softirq-context' && github.head_ref != 'experiment/hotdog-wlan-observed-rom-compile' && github.head_ref != 'research/hotdog-wlan-built-crc-selfcheck' && github.head_ref != 'research/hotdog-wlan-reference-release-gap')
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 180
