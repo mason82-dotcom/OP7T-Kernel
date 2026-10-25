@@ -12,11 +12,11 @@ on:
         required: true
         options: [baseline, core, external]
       variant:
-        description: Candidate kernel source; v0lk3n is NOT crDroid compatible by default
+        description: Kernel source: v0lk3n (LineageOS 23.2 experimental; not flashable)
         type: choice
-        default: crdroid
+        default: v0lk3n
         required: true
-        options: [crdroid, v0lk3n]
+        options: [v0lk3n, crdroid]
 
 concurrency:
   group: kernel-${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
