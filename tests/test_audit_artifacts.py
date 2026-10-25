@@ -27,6 +27,19 @@ def fixture(root):
 
 
 class AuditTests(unittest.TestCase):
+    def test_kernelsu_config_keys_are_retained_by_bounded_report(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "kernel.config"
+            path.write_text(
+                "CONFIG_KPROBES=y\nCONFIG_KSU=y\n"
+                "CONFIG_KSU_KPROBES_HOOK=y\n"
+                "CONFIG_KSU_LSM_SECURITY_HOOKS=y\n"
+            )
+            cfg = AUDIT.kernel_config_values(path)
+            for key in ("CONFIG_KPROBES", "CONFIG_KSU", "CONFIG_KSU_KPROBES_HOOK",
+                        "CONFIG_KSU_LSM_SECURITY_HOOKS"):
+                self.assertEqual("y", cfg[key])
+
     def test_good_fixture_never_claims_flash_ready(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
