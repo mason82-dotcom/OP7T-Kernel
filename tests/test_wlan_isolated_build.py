@@ -39,9 +39,9 @@ class WlanIsolatedBuildTests(unittest.TestCase):
         )
 
     def test_experimental_output_is_separate(self):
-        self.assertIn('OUT="$ROOT/.work/out-wlan-$PROFILE"', BUILD)
+        self.assertIn('OUT="$ROOT/.work/out-wlan${ROM_SUFFIX}-$PROFILE"', BUILD)
         self.assertIn('ART="$ROOT/.work/artifacts/wlan-$PROFILE"', BUILD)
-        self.assertIn('STAGE="$ROOT/.work/module-stage-wlan-$PROFILE"', BUILD)
+        self.assertIn('STAGE="$ROOT/.work/module-stage-wlan${ROM_SUFFIX}-$PROFILE"', BUILD)
         self.assertIn('wlan-patch-experiment.json', (ROOT / "scripts/audit-wlan-compile.py").read_text(encoding="utf-8"))
         self.assertIn('python3 "$ROOT/scripts/audit-wlan-compile.py"', BUILD)
         self.assertIn('"flash_ready": False', (ROOT / "scripts/audit-wlan-compile.py").read_text(encoding="utf-8"))

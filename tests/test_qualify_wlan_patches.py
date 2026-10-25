@@ -130,7 +130,7 @@ class CandidateGateTests(unittest.TestCase):
         self.assertLess(text.index("  0) ;;"), text.index('git -C "$EXP_TREE" apply'))
         self.assertIn("INSTALL_MOD_STRIP=1", text)
         self.assertIn("--require-signed --require-stripped", text)
-        self.assertIn('ART="$ROOT/.work/artifacts/wlan-$PROFILE"', text)
+        self.assertIn('ART="$ROOT/.work/artifacts/wlan${ROM_SUFFIX}-$PROFILE"', text)
 
     def test_no_runtime_or_flash_claim(self):
         script = SCRIPT.read_text(encoding="utf-8")
