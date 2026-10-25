@@ -11,6 +11,7 @@ Experimental **standalone kernel, module and NetHunter research workspace** for 
 3. [Evidence and inspection tools](docs/EVIDENCE_TOOLS.md) — read-only ADB/OTA/ELF/boot-image investigations.
 4. [Hardware evidence ledger](docs/HARDWARE_EVIDENCE.md) — previously recorded device results and **still-open** ROM, module, boot and recovery gates.
 5. [Release and flashing safety](docs/FLASHING.md) — why nothing may be flashed yet.
+6. [V0lk3n NetHunter candidate](docs/V0LK3N_CANDIDATE.md) — separately pinned LineageOS 23.2 / Android 16 kernel source for experimental comparison, **not** a crDroid 13-compatible release.
 
 ## Project facts
 
