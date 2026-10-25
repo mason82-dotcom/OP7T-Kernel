@@ -87,8 +87,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p .work/ci-diagnostics
-          if test -s ".work/out-${{ matrix.profile }}/.config"; then
-            cp ".work/out-${{ matrix.profile }}/.config" ".work/ci-diagnostics/${{ matrix.profile }}.config"
+          if test -s ".work/out-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/.config"; then
+            cp ".work/out-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/.config" ".work/ci-diagnostics/${{ matrix.profile }}.config"
           fi
           if test -s ".work/ci/build-${{ matrix.profile }}.log"; then
             tail -n 2500 ".work/ci/build-${{ matrix.profile }}.log" > .work/ci-diagnostics/build-log-tail.txt
@@ -98,7 +98,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: hotdog-failed-build-${{ matrix.profile }}-${{ github.run_id }}
+          name: hotdog-failed-build-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}-${{ github.run_id }}
           path: .work/ci-diagnostics/
           if-no-files-found: warn
           retention-days: 3
@@ -106,23 +106,23 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: hotdog-report-${{ matrix.profile }}-${{ github.run_id }}
+          name: hotdog-report-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}-${{ github.run_id }}
           path: |
-            .work/artifacts/${{ matrix.profile }}/artifact-report.json
-            .work/artifacts/${{ matrix.profile }}/kernel.config
-            .work/artifacts/${{ matrix.profile }}/kernel.release
-            .work/artifacts/${{ matrix.profile }}/upstream-commit.txt
-            .work/artifacts/${{ matrix.profile }}/toolchain-report.json
-            .work/artifacts/${{ matrix.profile }}/signing-cert.x509
-            .work/artifacts/${{ matrix.profile }}/signing-cert.sha256
-            .work/artifacts/${{ matrix.profile }}/build-module-cms.json
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/artifact-report.json
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/kernel.config
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/kernel.release
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/upstream-commit.txt
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/toolchain-report.json
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/signing-cert.x509
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/signing-cert.sha256
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/build-module-cms.json
           if-no-files-found: error
           retention-days: 7
       - name: Upload raw kernel and modules (manual only)
         if: success() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: hotdog-unverified-${{ matrix.profile }}-${{ github.sha }}
-          path: .work/artifacts/${{ matrix.profile }}/
+          name: hotdog-unverified-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}-${{ github.sha }}
+          path: .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/
           if-no-files-found: error
           retention-days: 7
