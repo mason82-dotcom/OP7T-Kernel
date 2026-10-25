@@ -101,7 +101,7 @@ jobs:
 
   wlan-rom-pinned-compile:
     # Exact observed ROM *source* commit only. Not signed/trusted ROM module parity.
-    if: github.event_name == 'pull_request' && github.head_ref == 'experiment/hotdog-wlan-observed-rom-compile'
+    if: github.event_name == 'pull_request' && (github.head_ref == 'experiment/hotdog-wlan-observed-rom-compile' || github.head_ref == 'research/hotdog-wlan-built-crc-selfcheck')
     needs: [lint, wlan-patch-qualification]
     runs-on: ubuntu-22.04
     timeout-minutes: 180
@@ -142,6 +142,7 @@ jobs:
             .work/artifacts/wlan-rom-core/toolchain-report.json
             .work/artifacts/wlan-rom-core/wlan-patch-experiment.json
             .work/artifacts/wlan-rom-core/wlan-rom-source-parity.json
+            .work/artifacts/wlan-rom-core/built-wlan-self-crc-report.json
           if-no-files-found: error
           retention-days: 7
 
@@ -190,7 +191,7 @@ jobs:
           retention-days: 7
 
   build:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref != 'research/hotdog-monitor-rx-softirq-context' && github.head_ref != 'experiment/hotdog-wlan-observed-rom-compile')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref != 'research/hotdog-monitor-rx-softirq-context' && github.head_ref != 'experiment/hotdog-wlan-observed-rom-compile' && github.head_ref != 'research/hotdog-wlan-built-crc-selfcheck')
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 180
