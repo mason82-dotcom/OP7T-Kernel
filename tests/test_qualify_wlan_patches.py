@@ -122,11 +122,15 @@ class CandidateGateTests(unittest.TestCase):
 
     def test_build_keeps_wlan_patches_disabled(self):
         text = (ROOT / "scripts/build.sh").read_text(encoding="utf-8")
-        self.assertNotIn("qualify-wlan-patches.py", text)
-        self.assertNotIn("0001-monitor-vdev-null-and-error-guards.patch", text)
-        self.assertNotIn("0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch", text)
+        self.assertIn('case "${WLAN_PATCH_EXPERIMENT:-0}" in', text)
+        self.assertIn("  0) ;;", text)
+        self.assertIn("  1)\n    echo", text)
+        self.assertIn('python3 "$ROOT/scripts/qualify-wlan-patches.py"', text)
+        self.assertIn('git -C "$EXP_TREE" apply', text)
+        self.assertLess(text.index("  0) ;;"), text.index('git -C "$EXP_TREE" apply'))
         self.assertIn("INSTALL_MOD_STRIP=1", text)
         self.assertIn("--require-signed --require-stripped", text)
+        self.assertIn('ART="$ROOT/.work/artifacts/wlan-$PROFILE"', text)
 
     def test_no_runtime_or_flash_claim(self):
         script = SCRIPT.read_text(encoding="utf-8")
