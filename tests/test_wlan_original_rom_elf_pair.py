@@ -36,6 +36,17 @@ class RomWlanBinaryPairTests(unittest.TestCase):
         self.addCleanup(self.base.doCleanups)
         self.art = self.base.art
         self.root = self.base.root
+        # The built module comes from the patched worktree and carries -dirty.
+        self.base.module.write_bytes(FIX.fake_arm64_module(release=BUILT_RELEASE))
+        self.base.artifact_report["kernel_release"] = BUILT_RELEASE
+        self.base.artifact_report["modules"][0]["sha256"] = self.base.sha()
+        self.base.artifact_report["modules"][0]["size_bytes"] = (
+            self.base.module.stat().st_size
+        )
+        self.base.compiled["wlan_module"]["sha256"] = self.base.sha()
+        self.base.compiled["wlan_module"]["vermagic"] = (
+            BUILT_RELEASE + " SMP modversions"
+        )
         self.original = self.root / "qca_cld3_wlan.ko"
         self.original.write_bytes(
             FIX.fake_arm64_module(release=RELEASE)
