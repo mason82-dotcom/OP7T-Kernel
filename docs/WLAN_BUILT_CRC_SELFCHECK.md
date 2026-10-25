@@ -30,4 +30,4 @@ It refuses to overwrite a previous report. No device is connected or changed.
 
 Even a perfect **self-built** CRC match cannot establish equivalence with the official reference OTA's `qca_cld3_wlan.ko` or the running kernel. The installed original image, its own symbol export CRCs and trusted signing certificates must be independently verified with evidence from the exact phone/build; generated ephemeral signing keys remain untrusted. The callback's softirq/BH/NAPI safety, charging-source changes, normal Wi-Fi functionality and passive monitor operation are also unverified.
 
-**`compared_against_actual_ROM_Module.symvers=false`, `installed_kernel_signing_trust_verified=false`, `flash_ready=false`.** No kernel/module deployment, AVB changes, signature bypass, flash packages or automatic merges.
+**`compared_against_actual_ROM_Module_symvers=false`, `installed_kernel_signing_trust_verified=false`, `flash_ready=false`.** No kernel/module deployment, AVB changes, signature bypass, flash packages or automatic merges.
