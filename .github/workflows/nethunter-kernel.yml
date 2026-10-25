@@ -99,6 +99,52 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  wlan-rom-pinned-compile:
+    # Exact observed ROM *source* commit only. Not signed/trusted ROM module parity.
+    if: github.event_name == 'pull_request' && github.head_ref == 'experiment/hotdog-wlan-observed-rom-compile'
+    needs: [lint, wlan-patch-qualification]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install experimental Clang 14 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex make build-essential git python3 \
+            libelf-dev libssl-dev binutils kmod clang-14 lld-14 llvm-14 \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+      - name: Compile isolated observed-ROM-source ICNSS RFC
+        env:
+          CC: clang-14
+          LD: ld.lld-14
+          AR: llvm-ar-14
+          NM: llvm-nm-14
+          OBJCOPY: llvm-objcopy-14
+          OBJDUMP: llvm-objdump-14
+          STRIP: llvm-strip-14
+          JOBS: 2
+          WLAN_PATCH_EXPERIMENT: '1'
+          WLAN_ROM_PIN_EXPERIMENT: '1'
+        run: |
+          mkdir -p .work/ci
+          set -o pipefail
+          bash scripts/build.sh core 2>&1 | tee .work/ci/wlan-rom-source-compile.log
+      - name: Upload bounded ROM-source compiler evidence only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-wlan-rom-source-compile-${{ github.run_id }}
+          path: |
+            .work/artifacts/wlan-rom-core/artifact-report.json
+            .work/artifacts/wlan-rom-core/kernel.config
+            .work/artifacts/wlan-rom-core/kernel.release
+            .work/artifacts/wlan-rom-core/upstream-commit.txt
+            .work/artifacts/wlan-rom-core/toolchain-report.json
+            .work/artifacts/wlan-rom-core/wlan-patch-experiment.json
+            .work/artifacts/wlan-rom-core/wlan-rom-source-parity.json
+          if-no-files-found: error
+          retention-days: 7
+
   wlan-isolated-compile:
     # Gated to this review branch; normal kernel PR builds are unmodified.
     if: github.event_name == 'pull_request' && github.head_ref == 'feature/hotdog-wlan-compile-experiment'
@@ -144,7 +190,7 @@ jobs:
           retention-days: 7
 
   build:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref != 'research/hotdog-monitor-rx-softirq-context')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref != 'research/hotdog-monitor-rx-softirq-context' && github.head_ref != 'experiment/hotdog-wlan-observed-rom-compile')
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 180
