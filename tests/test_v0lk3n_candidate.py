@@ -42,7 +42,8 @@ class V0lk3nCandidateTests(unittest.TestCase):
         self.assertIn("refusing mixed profiles", BUILD)
 
     def test_manual_ci_uses_separate_candidate_paths(self):
-        self.assertIn("options: [crdroid, v0lk3n]", WORKFLOW)
+        self.assertIn("options: [v0lk3n, crdroid]", WORKFLOW)
+        self.assertIn("default: v0lk3n", WORKFLOW)
         variant = "github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n'"
         self.assertGreaterEqual(WORKFLOW.count(variant), 11)
         self.assertNotIn(".work/artifacts/${{ matrix.profile }}/", WORKFLOW)
