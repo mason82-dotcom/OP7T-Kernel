@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Shell syntax
-        run: bash -n scripts/fetch-source.sh scripts/fetch-v0lk3n.sh scripts/prepare-v0lk3n-build.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
+        run: bash -n scripts/fetch-source.sh scripts/fetch-v0lk3n.sh scripts/prepare-v0lk3n-build.sh scripts/check-v0lk3n-dtc.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
       - name: Python config validation tests
         run: python3 -m unittest discover -s tests -v
       - name: Version and SHA lock
@@ -65,7 +65,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison flex make build-essential git python3 \
             libelf-dev libssl-dev binutils kmod clang-14 lld-14 llvm-14 \
-            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi device-tree-compiler
+      - name: Verify external Device Tree overlay compiler
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' }}
+        run: bash scripts/check-v0lk3n-dtc.sh
       - name: Build pinned kernel (not a boot image)
         env:
           CC: clang-14
@@ -117,6 +120,7 @@ jobs:
             .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/signing-cert.sha256
             .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/build-module-cms.json
             .work/artifacts/v0lk3n-${{ matrix.profile }}/v0lk3n-source-patch.sha256
+            .work/artifacts/v0lk3n-${{ matrix.profile }}/external-dtc-toolchain.txt
           if-no-files-found: error
           retention-days: 7
       - name: Upload raw kernel and modules (manual only)
