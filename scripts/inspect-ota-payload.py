@@ -154,7 +154,10 @@ def inspect(archive: Path):
         "partition_names": names,
         "requested_partition_names_present": {name: name in names for name in wanted},
         "partial_update_declared": partial,
-        "full_payload_confirmed": minor == 0 and partial is False,
+        # Android update_engine: minor 0 is a full payload. The optional proto2
+        # partial_update field defaults to false when absent, not "unknown".
+        # Full payload does NOT attest to all partitions on the installed phone.
+        "full_payload_confirmed": minor == 0 and partial is not True,
         "all_installed_partitions_enumerated": False,
         "ota_zip_sha256_verified": False,
         "images_extracted_or_validated": False,
