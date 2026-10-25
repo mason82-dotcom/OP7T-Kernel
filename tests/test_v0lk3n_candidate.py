@@ -9,6 +9,7 @@ SECURITY = (ROOT / "config/v0lk3n-security.fragment").read_text()
 BUILD = (ROOT / "scripts/build.sh").read_text()
 FETCH = (ROOT / "scripts/fetch-v0lk3n.sh").read_text()
 README = (ROOT / "docs/V0LK3N_CANDIDATE.md").read_text()
+WORKFLOW = (ROOT / ".github/workflows/nethunter-kernel.yml").read_text()
 
 class V0lk3nCandidateTests(unittest.TestCase):
     def test_pinned_source_is_lineage_23_not_crdroid(self):
@@ -39,6 +40,14 @@ class V0lk3nCandidateTests(unittest.TestCase):
         self.assertNotIn("prepare-kernelsu-next.sh", FETCH)
         self.assertIn("CONFIG_KSU=y", BUILD)  # explicit failure if unexpectedly enabled
         self.assertIn("refusing mixed profiles", BUILD)
+
+    def test_manual_ci_uses_separate_candidate_paths(self):
+        self.assertIn("options: [crdroid, v0lk3n]", WORKFLOW)
+        variant = "github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n'"
+        self.assertGreaterEqual(WORKFLOW.count(variant), 11)
+        self.assertNotIn(".work/artifacts/${{ matrix.profile }}/", WORKFLOW)
+        self.assertNotIn(".work/out-${{ matrix.profile }}/", WORKFLOW)
+        self.assertIn('STAGE="$ROOT/.work/module-stage-v0lk3n-$PROFILE"', BUILD)
 
     def test_readonly_and_incompatibility_documented(self):
         for term in ("flash_ready=false", "Android 16", "Android 17", "185", "Magisk"):
