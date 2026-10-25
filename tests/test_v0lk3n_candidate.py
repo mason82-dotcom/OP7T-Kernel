@@ -68,6 +68,19 @@ class V0lk3nCandidateTests(unittest.TestCase):
         self.assertIn("bash \"$ROOT/scripts/prepare-v0lk3n-build.sh\"", BUILD)
         self.assertIn("v0lk3n-source-patch.sha256", WORKFLOW)
 
+    def test_external_dtc_fails_closed_without_overlay_fixups(self):
+        script = (ROOT / "scripts/check-v0lk3n-dtc.sh").read_text()
+        self.assertIn("missing_kernel_base_label", script)
+        self.assertIn('fdtget -t s "$TMP/external-target.dtbo" /__fixups__ missing_kernel_base_label', script)
+        self.assertIn('"$DTC_BIN" -@ -I dts -O dtb', script)
+        self.assertIn("V0lk3n DTC gate: missing valid external-target fixup", script)
+        self.assertIn('bash "$ROOT/scripts/check-v0lk3n-dtc.sh"', BUILD)
+        self.assertIn('KARGS+=(DTC_EXT="$DTC_EXT")', BUILD)
+        self.assertIn('external-dtc-toolchain.txt', WORKFLOW)
+        self.assertIn('device-tree-compiler', WORKFLOW)
+        self.assertIn('Verify external Device Tree overlay compiler', WORKFLOW)
+        self.assertIn('scripts/check-v0lk3n-dtc.sh', WORKFLOW)
+
     def test_readonly_and_incompatibility_documented(self):
         for term in ("flash_ready=false", "Android 16", "Android 17", "185", "Magisk"):
             self.assertIn(term, README)
