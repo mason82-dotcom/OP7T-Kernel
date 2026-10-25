@@ -24,10 +24,11 @@ git -C "$KERNEL" apply "$PATCH"
 git -C "$KERNEL" diff --check
 git -C "$KERNEL" apply --reverse --check "$PATCH"
 mapfile -t MODIFIED < <(git -C "$KERNEL" diff --name-only)
-if [[ "${#MODIFIED[@]}" != 3 ||
+if [[ "${#MODIFIED[@]}" != 4 ||
       "${MODIFIED[0]}" != "arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts" ||
       "${MODIFIED[1]}" != "drivers/staging/qcacld-3.0/Kbuild" ||
-      "${MODIFIED[2]}" != "scripts/Makefile.lib" ]]; then
+      "${MODIFIED[2]}" != "drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c" ||
+      "${MODIFIED[3]}" != "scripts/Makefile.lib" ]]; then
   echo "Unexpected V0lk3n modifications after applying pinned compile patch" >&2
   exit 2
 fi
