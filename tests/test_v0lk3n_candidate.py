@@ -49,6 +49,18 @@ class V0lk3nCandidateTests(unittest.TestCase):
         self.assertNotIn(".work/out-${{ matrix.profile }}/", WORKFLOW)
         self.assertIn('STAGE="$ROOT/.work/module-stage-v0lk3n-$PROFILE"', BUILD)
 
+    def test_narrow_source_patch_is_pinned_and_fail_closed(self):
+        patch = (ROOT / "patches/v0lk3n-build-compile-preflight.patch").read_text()
+        script = (ROOT / "scripts/prepare-v0lk3n-build.sh").read_text()
+        self.assertIn("git -C \"$KERNEL\" apply --check \"$PATCH\"", script)
+        self.assertIn("git -C \"$KERNEL\" apply --reverse --check \"$PATCH\"", script)
+        self.assertIn("V0lk3n source worktree is dirty; refusing patch", script)
+        self.assertEqual(patch.count("diff --git "), 2)
+        self.assertIn("+\t\t$(HDD_INC) \\", patch)
+        self.assertIn("+/ {", patch)
+        self.assertIn("bash \"$ROOT/scripts/prepare-v0lk3n-build.sh\"", BUILD)
+        self.assertIn("v0lk3n-source-patch.sha256", WORKFLOW)
+
     def test_readonly_and_incompatibility_documented(self):
         for term in ("flash_ready=false", "Android 16", "Android 17", "185", "Magisk"):
             self.assertIn(term, README)
