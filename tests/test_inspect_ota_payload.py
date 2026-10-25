@@ -93,6 +93,29 @@ class PayloadInventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(MOD.PayloadError, "invalid"):
             MOD.inspect(self.zip(payload(["../vendor_dlkm"])))
 
+    def test_update_engine_platform_specific_safe_names(self):
+        # Android's required PartitionUpdate.partition_name is not limited
+        # to lowercase-starting Linux path components.
+        names = ["0boot", "LOGO", "xbl-config", "vendor_dlkm", "modem.1",
+                 "modem+firmware", "_firmware"]
+        report = MOD.inspect(self.zip(payload(names)))
+        self.assertEqual(sorted(names), report["partition_names"])
+        self.assertTrue(report["requested_partition_names_present"]["vendor_dlkm"])
+        self.assertFalse(report["flash_ready"])
+
+    def test_partition_names_reject_path_traversal_and_controls(self):
+        for name in ("/vendor", "../vendor_dlkm", "vendor/other", "a..b",
+                     "vendor.", "vendor\\\\name", "vendor:name", "name space",
+                     "a" * 65, "vendor\\nname", ""):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(MOD.PayloadError, "invalid"):
+                    MOD.inspect(self.zip(payload([name])))
+
+    def test_rejected_partitions_show_bounded_diagnostic(self):
+        with self.assertRaisesRegex(
+                MOD.PayloadError, "Unsafe or invalid partition name: 'vendor/other'"):
+            MOD.inspect(self.zip(payload(["vendor/other"])))
+
     def test_duplicate_zip_payload_bin_fails(self):
         import warnings
         with warnings.catch_warnings():
