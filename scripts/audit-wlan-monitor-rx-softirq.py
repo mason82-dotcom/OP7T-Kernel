@@ -182,7 +182,10 @@ def audit(kernel, project=ROOT):
     if not re.search(r"^CONFIG_ICNSS=y$", board, re.MULTILINE):
         raise ContextAuditError("Pinned hotdog defconfig no longer selects ICNSS")
     if (not re.search(r"^CONFIG_QCA_CLD_WLAN=m$", oplus, re.MULTILINE) or
-            not re.search(r'^CONFIG_QCA_CLD_WLAN_PROFILE="default"
+            not re.search(r'^CONFIG_QCA_CLD_WLAN_PROFILE="default"$',
+                          oplus, re.MULTILINE)):
+        raise ContextAuditError("Pinned hotdog vendor WLAN build profile changed")
+    original = project / PATCH_PATH
     if original.is_symlink() or not original.is_file():
         raise ContextAuditError("Missing or linked approved RFC patch")
     files = {}
