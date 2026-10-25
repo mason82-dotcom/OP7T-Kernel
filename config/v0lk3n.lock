@@ -1,0 +1,10 @@
+# Experimental NetHunter source candidate, not a crDroid 13 / Android 17 compatibility claim.
+# This does NOT replace config/upstream.lock on main or merge KernelSU Next.
+V0LK3N_URL=https://github.com/V0lk3n/nethunter_kernel_oneplus_sm8150.git
+V0LK3N_REF=nethunter-lineage-23.2
+V0LK3N_SHA=d5dee6f73a667dcfa978288be7053dce08127948
+V0LK3N_DEVICE=hotdog
+V0LK3N_SOURCE_ANDROID=16
+V0LK3N_SOURCE_ROM=lineage-23.2
+V0LK3N_TARGET_ANDROID=17
+V0LK3N_TARGET_CRDROID=13
