@@ -44,6 +44,8 @@ class V0lk3nCandidateTests(unittest.TestCase):
     def test_manual_ci_uses_separate_candidate_paths(self):
         self.assertIn("options: [v0lk3n, crdroid]", WORKFLOW)
         self.assertIn("default: v0lk3n", WORKFLOW)
+        self.assertIn('description: "Kernel source: v0lk3n (LineageOS 23.2 experimental; not flashable)"', WORKFLOW)
+        self.assertIn("  workflow_dispatch:", WORKFLOW)
         variant = "github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n'"
         self.assertGreaterEqual(WORKFLOW.count(variant), 11)
         self.assertNotIn(".work/artifacts/${{ matrix.profile }}/", WORKFLOW)
