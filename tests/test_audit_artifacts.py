@@ -8,7 +8,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "audit-artifacts.py"
 SPEC = importlib.util.spec_from_file_location("audit_artifacts", SCRIPT)
 AUDIT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(AUDIT)
-SOURCE_SHA = "1083c6c5906114c71b11a429898b111a1b1b8109"
+SOURCE_SHA = "57037290bb57caefd3c337db3511fca5751fb4ef"
 
 
 def fixture(root):
