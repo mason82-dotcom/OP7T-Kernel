@@ -1,0 +1,14 @@
+{
+  "schema": "hotdog-wlan-reference-release-v1",
+  "device": "hotdog",
+  "rom_reference_manifest": "config/rom-reference.json",
+  "rom_reference_zip_sha256": "423be5133cb09c88e1dab741ddf77a7e545121c6cf8381d50b4a93c431857834",
+  "rom_reference_release_date": "2026-10-21",
+  "reference_ota_wlan_module": "qca_cld3_wlan.ko",
+  "observed_reference_wlan_vermagic_release": "4.14.357-perf-g57037290bb57",
+  "observed_rom_source_sha": "57037290bb57caefd3c337db3511fca5751fb4ef",
+  "source_context": "Previously inspected crDroid hotdog October 21 reference OTA WLAN module and physical device release; does not independently attest the actual installed partition",
+  "installed_rom_binary_identity_verified": false,
+  "reference_ota_module_signing_key_trust_verified": false,
+  "flash_ready": false
+}
