@@ -45,6 +45,31 @@ for command_name in make git python3 sha256sum readelf "$CC_BIN" "$LD_BIN" "$AR_
 done
 bash "$ROOT/scripts/fetch-source.sh"
 
+# Additional, explicit host-only ROM-source experiment. This is NOT a
+# ROM binary/ABI equivalence gate: the observed SHA is a source candidate.
+case "${WLAN_ROM_PIN_EXPERIMENT:-0}" in
+  0) ;;
+  1)
+    [[ "${WLAN_PATCH_EXPERIMENT:-0}" == 1 && "$PROFILE" == core ]] || {
+      echo "ROM-source experiment requires WLAN_PATCH_EXPERIMENT=1 and core profile" >&2
+      exit 2
+    }
+    [[ "$UPSTREAM_SHA" == 1083c6c5906114c71b11a429898b111a1b1b8109 ]] || {
+      echo "Unexpected original source pin for ROM-source experiment" >&2
+      exit 2
+    }
+    ROM_SOURCE_SHA=57037290bb57caefd3c337db3511fca5751fb4ef
+    git -C "$KERNEL" fetch --no-tags --depth=2 origin "$ROM_SOURCE_SHA"
+    python3 "$ROOT/scripts/check-wlan-rom-source-parity.py" \
+      --kernel "$KERNEL" > "$ROOT/.work/wlan-rom-source-parity-preflight.json"
+    UPSTREAM_SHA="$ROM_SOURCE_SHA"
+    ;;
+  *)
+    echo "WLAN_ROM_PIN_EXPERIMENT only accepts 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
 # Explicit review-only WLAN experiment. The original pinned checkout remains
 # clean and untouched; changes live exclusively in a disposable linked worktree.
 case "${WLAN_PATCH_EXPERIMENT:-0}" in
@@ -52,7 +77,9 @@ case "${WLAN_PATCH_EXPERIMENT:-0}" in
   1)
     echo "WLAN PATCHED COMPILE IS EXPERIMENTAL. NEVER FLASH."
     python3 "$ROOT/scripts/qualify-wlan-patches.py" --kernel "$KERNEL" > /dev/null
-    EXP_TREE="$ROOT/.work/kernel-wlan-rfc-$PROFILE"
+    ROM_SUFFIX=""
+    if [[ "${WLAN_ROM_PIN_EXPERIMENT:-0}" == 1 ]]; then ROM_SUFFIX="-rom"; fi
+    EXP_TREE="$ROOT/.work/kernel-wlan${ROM_SUFFIX}-rfc-$PROFILE"
     [[ ! -e "$EXP_TREE" ]] || {
       echo "Experimental worktree exists; refusing to overwrite it" >&2
       exit 2
@@ -81,8 +108,8 @@ case "${WLAN_PATCH_EXPERIMENT:-0}" in
     [[ "$(git -C "$EXP_TREE" rev-parse HEAD)" == "$UPSTREAM_SHA" ]] || exit 2
     [[ -z "$(git -C "$ORIGINAL_KERNEL" status --porcelain)" ]] || exit 2
     KERNEL="$EXP_TREE"
-    OUT="$ROOT/.work/out-wlan-$PROFILE"
-    ART="$ROOT/.work/artifacts/wlan-$PROFILE"
+    OUT="$ROOT/.work/out-wlan${ROM_SUFFIX}-$PROFILE"
+    ART="$ROOT/.work/artifacts/wlan${ROM_SUFFIX}-$PROFILE"
     DEF="$KERNEL/arch/arm64/configs/vendor/sm8150-perf_defconfig"
     OPLUS="$KERNEL/arch/arm64/configs/vendor/oplus.config"
     ;;
@@ -95,6 +122,10 @@ esac
 test -s "$DEF" && test -s "$OPLUS"
 rm -rf "$OUT" "$ART"
 mkdir -p "$OUT" "$ART"
+if [[ "${WLAN_ROM_PIN_EXPERIMENT:-0}" == 1 ]]; then
+  install -m 0644 "$ROOT/.work/wlan-rom-source-parity-preflight.json" \
+    "$ART/wlan-rom-source-parity.json"
+fi
 # Toolchain provenance is evidence, NOT proof of installed-ROM compiler parity.
 python3 "$ROOT/scripts/audit-toolchain.py" --clang "$CC_BIN" --ld "$LD_BIN" \
   --output "$ART/toolchain-report.json"
@@ -158,7 +189,9 @@ if ! grep -qx 'CONFIG_MODULE_SIG_ALL=y' "$OUT/.config" ||
 fi
 STAGE="$ROOT/.work/module-stage-$PROFILE"
 if [[ "${WLAN_PATCH_EXPERIMENT:-0}" == 1 ]]; then
-  STAGE="$ROOT/.work/module-stage-wlan-$PROFILE"
+  ROM_SUFFIX=""
+  if [[ "${WLAN_ROM_PIN_EXPERIMENT:-0}" == 1 ]]; then ROM_SUFFIX="-rom"; fi
+  STAGE="$ROOT/.work/module-stage-wlan${ROM_SUFFIX}-$PROFILE"
 fi
 rm -rf -- "$STAGE"
 mkdir -p "$STAGE"

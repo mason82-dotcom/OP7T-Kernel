@@ -87,6 +87,64 @@ class WlanCompilationEvidenceTests(unittest.TestCase):
         self.assertFalse(data["inactive_lithium_patch"]["applied"])
         self.assertFalse(data["inactive_lithium_patch"]["compiled"])
 
+    def test_rom_source_child_requires_matching_signed_module_and_parity(self):
+        self.report["upstream_commit"] = AUDIT.ROM_PIN
+        self.write_report()
+        patch = ROOT / AUDIT.PATCHES[0]
+        parity = {
+            "schema": "hotdog-wlan-rom-source-parity-v1",
+            "parent_sha": AUDIT.PIN,
+            "rom_source_sha": AUDIT.ROM_PIN,
+            "source_equivalence_verified": True,
+            "flash_ready": False,
+            "rom_module_abi_verified": False,
+            "rom_signing_key_trust_verified": False,
+            "selected_patch": {
+                "path": AUDIT.PATCHES[0],
+                "sha256": hashlib.sha256(patch.read_bytes()).hexdigest(),
+                "apply_check_parent": True,
+                "apply_check_rom_source": True,
+                "applied": False,
+            },
+        }
+        report_path = self.art / "wlan-rom-source-parity.json"
+        with self.assertRaises(AUDIT.AttestationError):
+            AUDIT.attest(self.out, self.art, expected_sha=AUDIT.ROM_PIN)
+        report_path.write_text(json.dumps(parity), encoding="utf-8")
+        result = AUDIT.attest(self.out, self.art, expected_sha=AUDIT.ROM_PIN)
+        self.assertEqual(AUDIT.ROM_PIN, result["upstream_sha"])
+        self.assertEqual(
+            "observed_rom_release_source_candidate", result["source_pin_role"]
+        )
+        self.assertTrue(result["source_parity"]["wlan_source_parity_verified"])
+        self.assertFalse(result["installed_rom_kernel_binary_identical"])
+        self.assertFalse(result["observed_rom_kernel_release_verified"])
+        self.assertFalse(result["rfc_behavioral_equivalence_verified"])
+        self.assertFalse(result["flash_ready"])
+
+        for update in (
+            {"rom_source_sha": "f" * 40},
+            {"rom_module_abi_verified": True},
+            {"source_equivalence_verified": False},
+            {"flash_ready": True},
+            {"selected_patch": {**parity["selected_patch"], "sha256": "0" * 64}},
+            {"selected_patch": {**parity["selected_patch"], "applied": True}},
+        ):
+            invalid = dict(parity, **update)
+            report_path.write_text(json.dumps(invalid), encoding="utf-8")
+            with self.subTest(update=update), self.assertRaises(
+                AUDIT.AttestationError
+            ):
+                AUDIT.attest(self.out, self.art, expected_sha=AUDIT.ROM_PIN)
+
+    def test_unknown_source_pin_rejected_without_parity_exception(self):
+        with self.assertRaises(AUDIT.AttestationError):
+            AUDIT.attest(self.out, self.art, expected_sha="f" * 40)
+        self.assertEqual(
+            "original_experiment",
+            AUDIT.attest(self.out, self.art)["source_pin_role"],
+        )
+
     def test_each_missing_compiler_object_rejected(self):
         for name in AUDIT.EXPECTED_OBJECTS:
             target = self.out / name
