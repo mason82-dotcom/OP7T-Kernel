@@ -1,0 +1,21 @@
+diff --git a/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts b/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts
+--- a/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts
++++ b/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts
+@@ -13,5 +13,8 @@
+ /dts-v1/;
+ /plugin/;
+ 
++/ {
++};
++
+ #include <dt-bindings/clock/qcom,gcc-sm8150.h>
+ #include <dt-bindings/clock/qcom,camcc-sm8150.h>
+diff --git a/drivers/staging/qcacld-3.0/Kbuild b/drivers/staging/qcacld-3.0/Kbuild
+--- a/drivers/staging/qcacld-3.0/Kbuild
++++ b/drivers/staging/qcacld-3.0/Kbuild
+@@ -2067,4 +2067,5 @@
+ INCS := -I $(srctree)/$(WLAN_ROOT)/inc \
++		$(HDD_INC) \
+ 		$(EPPING_INC) \
+ 		$(QAL_INC) \
+ 		$(QDF_INC) \
