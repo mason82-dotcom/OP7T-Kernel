@@ -49,6 +49,30 @@ jobs:
       - name: Check both optional WLAN patches on original source
         run: python3 scripts/qualify-wlan-patches.py --kernel .work/kernel
 
+  wlan-monitor-rx-softirq:
+    # Static code-behavior review only; not evidence of runtime-safe RX.
+    if: github.event_name == 'pull_request' && github.head_ref == 'research/hotdog-monitor-rx-softirq-context'
+    needs: lint
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned unmodified kernel
+        run: bash scripts/fetch-source.sh
+      - name: Inspect ICNSS callback versus Linux 4.14 softirq implementation
+        run: |
+          mkdir -p .work
+          python3 scripts/audit-wlan-monitor-rx-softirq.py --kernel .work/kernel > .work/monitor-rx-softirq-audit.json
+          python3 -m json.tool .work/monitor-rx-softirq-audit.json > /dev/null
+      - name: Upload bounded static scheduling-risk report only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-monitor-rx-softirq-risk-${{ github.run_id }}
+          path: .work/monitor-rx-softirq-audit.json
+          if-no-files-found: error
+          retention-days: 7
+
   wlan-rom-source-parity:
     # Host-only research. No compiler, runtime, partition writes or flashing.
     if: github.event_name == 'pull_request' && github.head_ref == 'research/hotdog-wlan-rom-pin-parity'
@@ -120,7 +144,7 @@ jobs:
           retention-days: 7
 
   build:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref != 'research/hotdog-monitor-rx-softirq-context')
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 180
