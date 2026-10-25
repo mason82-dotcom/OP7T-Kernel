@@ -58,6 +58,14 @@ The new, limited `patches/v0lk3n-build-compile-preflight.patch` **attempts** to 
 
 The patch is applied **inside the ignored experimental source checkout**, not in the original V0lk3n GitHub repository. The resulting checkout is deliberately modified and the build may acquire a `-dirty` kernel suffix. The patch digest is recorded in `v0lk3n-source-patch.sha256`. The compile-path hypothesis is **unproven until a new manual CI build**. The source checkout is not designed for repeated builds after patch application without recreating a clean checkout; fail-closed behavior is intentional.
 
+### Second compilation attempt: new specific failures
+
+Manual [run 40225953270](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40225953270) compiled past the initial `wlan_hdd_frame_inject.h` error, proving the `$(HDD_INC)` search path addresses that missing header. It then failed at `wma_frame_inject.h`, a header actually present under `drivers/staging/qcacld-3.0/core/wma/inc`. The new revision also adds the already-defined `$(WMA_INC)` to QCACLD's `INCS` variable; compilation of that path is not yet independently confirmed.
+
+The attempted empty top-level DTS root removed the previous parser-syntax error, but the build instead failed on *many* unresolved external DT labels (`soc`, `tlmm`, `snd_9360`, etc.). The V0lk3n `scripts/Makefile.lib` compilation rule lacks `-@`, which Android's overlay compilation documentation requires for symbol/fixup generation. The new revision adds conditional `DTC_FLAGS += -@` when `CONFIG_BUILD_ARM64_DT_OVERLAY=y`, retaining the empty root. This is a **testable build hypothesis**, not proof that the resulting DTBO loads correctly, corresponds to `hotdog`, or applies to the installed reference base tree. The source patch now modifies **three** files, strictly checked by the preflight script.
+
+The full kernel compile with these two additional adjustments is **not yet run**. Preserve a failure-closed state if unknown headers, DTO fixups, Kconfig or signature checks fail. See original issue #3.
+
 ## Required before any hardware attempt
 
 Prove exact installed ROM partition provenance; inspect V0lk3n-versus-original `Image`, DTBs, modules, `Module.symvers`, `vermagic`, CRC, signing trust, firmware; reproduce the original boot layout/AVB and document recovery for both slots. Unless each independent gate passes, maintain `flash_ready=false`.
