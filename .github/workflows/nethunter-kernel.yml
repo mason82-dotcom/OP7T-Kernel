@@ -11,6 +11,12 @@ on:
         default: baseline
         required: true
         options: [baseline, core, external]
+      variant:
+        description: Candidate kernel source; v0lk3n is NOT crDroid compatible by default
+        type: choice
+        default: crdroid
+        required: true
+        options: [crdroid, v0lk3n]
 
 concurrency:
   group: kernel-${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
@@ -25,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Shell syntax
-        run: bash -n scripts/fetch-source.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
+        run: bash -n scripts/fetch-source.sh scripts/fetch-v0lk3n.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
       - name: Python config validation tests
         run: python3 -m unittest discover -s tests -v
       - name: Version and SHA lock
@@ -36,9 +42,13 @@ jobs:
           test "$ROM_ANDROID" = 17
           test "$ROM_CRDROID" = 13
           [[ "$UPSTREAM_SHA" =~ ^[a-f0-9]{40}$ ]]
+          source config/v0lk3n.lock
+          [[ "$V0LK3N_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$V0LK3N_SOURCE_ANDROID" = 16
+          test "$V0LK3N_TARGET_ANDROID" = 17
 
   build:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref != 'feature/hotdog-v0lk3n-nethunter-source')
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 180
@@ -67,6 +77,7 @@ jobs:
           STRIP: llvm-strip-14
           JOBS: 2
           PROFILE: ${{ matrix.profile }}
+          KERNEL_VARIANT: ${{ github.event_name == 'workflow_dispatch' && inputs.variant || 'crdroid' }}
         run: |
           mkdir -p .work/ci
           set -o pipefail
