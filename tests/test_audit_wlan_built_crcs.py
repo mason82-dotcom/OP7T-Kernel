@@ -128,7 +128,7 @@ class BuiltWlanSelfCrcTests(unittest.TestCase):
         self.assertEqual(1, report["matched_against_same_build_Module_symvers"])
         self.assertEqual(0, report["mismatched_symbol_crc_count"])
         for key in (
-            "compared_against_actual_ROM_Module.symvers",
+            "compared_against_actual_ROM_Module_symvers",
             "actual_ROM_kernel_binary_identity_verified",
             "reference_OTA_WLAN_ELF_abi_verified",
             "installed_kernel_signing_trust_verified",
