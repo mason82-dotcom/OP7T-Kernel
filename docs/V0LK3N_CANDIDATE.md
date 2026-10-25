@@ -47,6 +47,17 @@ The alternate work directories are `.work/out-v0lk3n-baseline` and `.work/artifa
 
 For CI, explicitly select `variant=v0lk3n` with `profile=baseline` from a manual workflow_dispatch in this branch. Pull requests perform lint and unit testing but do **not** automatically build an unsupported cross-ROM kernel.
 
+## First compiled-build result and tightly scoped preflight (2026-10-25)
+
+Manual CI run [40222874008](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40222874008) **FAILED** in actual compilation, despite successful lint, Clang14 installation and accepted forced module signing:
+
+- DTS: `arch/arm64/boot/dts/18821/pm8150.dtsi:21` parse error during the 18821 `sm8150-mtp-overlay.dtbo` target.
+- WLAN: `wlan_hdd_frame_inject.h` could not be found when compiling `wlan_hdd_assoc.o`; it exists under `drivers/staging/qcacld-3.0/core/hdd/inc`. The Kbuild defines `HDD_INC`, but the `INCS` sequence omitted it.
+
+The new, limited `patches/v0lk3n-build-compile-preflight.patch` **attempts** to insert an empty DTS root before included fragments and adds `$(HDD_INC)` to the WLAN include search path. `scripts/prepare-v0lk3n-build.sh` applies the patch only when the source is at the pinned commit with a completely clean worktree; `git apply --check` and a strict two-file modification list must succeed, otherwise the build stops. This does not validate the resulting Device Tree, firmware, feature functionality, ABI or module-signing trust.
+
+The patch is applied **inside the ignored experimental source checkout**, not in the original V0lk3n GitHub repository. The resulting checkout is deliberately modified and the build may acquire a `-dirty` kernel suffix. The patch digest is recorded in `v0lk3n-source-patch.sha256`. The compile-path hypothesis is **unproven until a new manual CI build**. The source checkout is not designed for repeated builds after patch application without recreating a clean checkout; fail-closed behavior is intentional.
+
 ## Required before any hardware attempt
 
 Prove exact installed ROM partition provenance; inspect V0lk3n-versus-original `Image`, DTBs, modules, `Module.symvers`, `vermagic`, CRC, signing trust, firmware; reproduce the original boot layout/AVB and document recovery for both slots. Unless each independent gate passes, maintain `flash_ready=false`.
