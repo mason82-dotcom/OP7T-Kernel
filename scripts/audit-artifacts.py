@@ -94,6 +94,21 @@ def module_metadata(path, relative):
     }
 
 
+def collect_dtbo_files(root, required=False):
+    """Read-only DTBO acceptance: require actual archived overlay FDTs."""
+    dtbos = sorted((root / "dtbos").rglob("*.dtbo"))
+    if required and not dtbos:
+        raise ValueError("V0lk3n build has no captured DTBO overlays")
+    for dtbo in dtbos:
+        with dtbo.open("rb") as stream:
+            header = stream.read(8)
+        total_size = int.from_bytes(header[4:8], "big") if len(header) == 8 else 0
+        if (len(header) != 8 or header[:4] != bytes.fromhex("d00dfeed")
+                or not 40 <= total_size <= dtbo.stat().st_size):
+            raise ValueError(f"Invalid DTBO FDT header or size: {dtbo.name}")
+    return dtbos
+
+
 def collect(root, expected_sha, profile, require_signed=False, require_stripped=False, require_dtbo=False):
     image = root / "Image"
     if not image.is_file():
@@ -122,16 +137,7 @@ def collect(root, expected_sha, profile, require_signed=False, require_stripped=
     if not SHA.fullmatch(commit) or commit != expected_sha:
         raise ValueError(f"Kernel source mismatch: {commit}")
     dtbs = sorted((root / "dtbs").rglob("*.dtb"))
-    dtbos = sorted((root / "dtbos").rglob("*.dtbo"))
-    if require_dtbo and not dtbos:
-        raise ValueError("V0lk3n build has no captured DTBO overlays")
-    # Validate that every captured overlay has a complete FDT header.
-    for dtbo in dtbos:
-        with dtbo.open("rb") as stream:
-            header = stream.read(8)
-        length = int.from_bytes(header[4:8], "big") if len(header) == 8 else 0
-        if len(header) != 8 or header[:4] != bytes.fromhex("d00dfeed") or not 40 <= length <= dtbo.stat().st_size:
-            raise ValueError(f"Invalid DTBO FDT header or size: {dtbo.name}")
+    dtbos = collect_dtbo_files(root, require_dtbo)
     modules = sorted((root / "modules").rglob("*.ko"))
     if not dtbs:
         raise ValueError("No DTBs captured; packaging must be blocked")
