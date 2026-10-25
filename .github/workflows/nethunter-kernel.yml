@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Shell syntax
-        run: bash -n scripts/fetch-source.sh scripts/fetch-v0lk3n.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
+        run: bash -n scripts/fetch-source.sh scripts/fetch-v0lk3n.sh scripts/prepare-v0lk3n-build.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
       - name: Python config validation tests
         run: python3 -m unittest discover -s tests -v
       - name: Version and SHA lock
@@ -116,6 +116,7 @@ jobs:
             .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/signing-cert.x509
             .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/signing-cert.sha256
             .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/build-module-cms.json
+            .work/artifacts/v0lk3n-${{ matrix.profile }}/v0lk3n-source-patch.sha256
           if-no-files-found: error
           retention-days: 7
       - name: Upload raw kernel and modules (manual only)
