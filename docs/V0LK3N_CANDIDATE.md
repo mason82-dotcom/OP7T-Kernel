@@ -66,6 +66,16 @@ The attempted empty top-level DTS root removed the previous parser-syntax error,
 
 The full kernel compile with these two additional adjustments is **not yet run**. Preserve a failure-closed state if unknown headers, DTO fixups, Kconfig or signature checks fail. See original issue #3.
 
+### Third compilation attempt: DTC parser root cause
+
+Manual V0lk3n build [40229728199](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40229728199) **FAILED**. The previous QCACLD header errors were resolved, and the build reached the `LD [M] drivers/staging/qcacld-3.0/wlan.o` step, which is positive **compile/link evidence only**, not evidence that a usable, ABI-compatible or signed `wlan.ko` exists.
+
+The 18821 `sm8150-mtp-overlay.dtbo` still fails with dozens of unknown label references, despite an explicit `DTC_FLAGS += -@`. The pinned Linux 4.14 kernel's **own** `scripts/dtc/dtc-parser.y` is the root cause: its `devicetree DT_REF nodedef` production reports unknown external references unconditionally and has no `add_orphan_node` fallback for `DTSF_PLUGIN`. These are parser errors; `-@` alone cannot solve them.
+
+A new fix attempts to select the separate Ubuntu `device-tree-compiler` binary via the kernel's existing `DTC_EXT` switch for the V0lk3n candidate only. Before cloning or building, `scripts/check-v0lk3n-dtc.sh` compiles a minimal `/plugin/;` fixture using an unresolved target label and requires an actual `/__fixups__` record through `fdtget`. Kbuild is passed `DTC_EXT` explicitly and external DTC path, version and SHA256 are archived as `external-dtc-toolchain.txt`. **This is not yet a successful build or a validation of actual hotdog base/overlay pairing.**
+
+The in-tree DTC remains unchanged. The previously reviewed V0lk3n source patch still affects three bounded files; neither module signing enforcement nor RTL/WLAN gates are bypassed. Any incompatible real DTS/DTBO, build failure, module trust, ABI mismatch or firmware mismatch must remain a blocker. The ability to create an overlay fixup does not prove that it resolves against the installed ROM, so `flash_ready=false` remains mandatory.
+
 ## Required before any hardware attempt
 
 Prove exact installed ROM partition provenance; inspect V0lk3n-versus-original `Image`, DTBs, modules, `Module.symvers`, `vermagic`, CRC, signing trust, firmware; reproduce the original boot layout/AVB and document recovery for both slots. Unless each independent gate passes, maintain `flash_ready=false`.
