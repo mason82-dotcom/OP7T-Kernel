@@ -162,10 +162,10 @@ def check(artifacts):
     }
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifacts", required=True, type=Path)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         result = check(args.artifacts)
         filename = args.artifacts / "built-wlan-self-crc-report.json"
