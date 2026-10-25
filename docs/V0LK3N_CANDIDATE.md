@@ -96,6 +96,22 @@ The CI run archived two bundles: raw [unverified kernel/modules](https://github.
 
 **Final disposition:** This is reproducible compile evidence only; `RAW_ARTIFACT_ONLY_UNVERIFIED`, `flash_ready=false`. No boot.img, AVB modifications, partition writes or deployment.
 
+### Second complete V0lk3n baseline build: captured overlays and signed modules
+
+Manual [run 40241384958](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40241384958), using PR branch commit `fec4f59284b2e8fb10498b31e0b2e8f9f2547e02`, **SUCCEEDED**, including the expanded DTBO gate. Its actual CI output reports:
+
+- **8 kernel modules, 8 signed** and CMS verification against the newly generated **build-only** public certificate;
+- **20 base `.dtb` files and 10 separately archived `.dtbo` overlays**, including output under `18821`, `18857`, `18865`, `19801` and `19863`;
+- successful `Image dtbs modules` / MODPOST and staged `wlan.ko`;
+- **4 remaining `modpost` section mismatch warnings**, not yet explained;
+- final `RAW_ARTIFACT_ONLY_UNVERIFIED; flash_ready=false`.
+
+Artifacts: [raw Image, modules, DTBs and DTBOs](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40241384958/artifacts/12617202227) (27,904,655 compressed bytes) and [bounded build/signature report](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40241384958/artifacts/12617636004) (46,604 compressed bytes). Both expire **2026-11-01**.
+
+These overlay counts and valid headers confirm only **archival completeness and basic format**. They do not prove that a specific board overlay applies to the installed ROM's base DTB or matches the actual device board ID, nor that the installed Android 17 kernel accepts this source's rebuilt modules. The ephemerally generated signing certificate has **not** been matched to the phone's trusted keyring; module CRC/vermagic parity with installed modules, ABI compatibility, offline boot repack, both-slot recovery, and runtime injection authorization remain **unverified**. Do not interpret CI success as a firmware, USB, Wi-Fi, NetHunter or root acceptance test.
+
+**Next verification tasks (read-only):** retain/download the two expiring artifacts, classify four section mismatch warnings with a diagnostic build (`CONFIG_DEBUG_SECTION_MISMATCH=y` but no relaxation of signing policy), inspect actual `__fixups__` and overlay/base DTB identifiers against a trustworthy original ROM reference, and perform an independent installed-ROM module symbol CRC/vermagic/signing trust audit before considering a controlled device test.
+
 ## Required before any hardware attempt
 
 Prove exact installed ROM partition provenance; inspect V0lk3n-versus-original `Image`, DTBs, modules, `Module.symvers`, `vermagic`, CRC, signing trust, firmware; reproduce the original boot layout/AVB and document recovery for both slots. Unless each independent gate passes, maintain `flash_ready=false`.
