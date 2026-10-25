@@ -24,7 +24,11 @@ class IntegratedKernelSafetyTests(unittest.TestCase):
     def test_toolchain_provenance_is_generated_with_each_profile(self):
         self.assertIn('scripts/audit-toolchain.py" --clang "$CC_BIN" --ld "$LD_BIN"', self.build)
         self.assertIn('--output "$ART/toolchain-report.json"', self.build)
-        self.assertIn(".work/artifacts/${{ matrix.profile }}/toolchain-report.json", self.ci)
+        # Both variants must publish the same toolchain provenance, using
+        # separate paths only when the manual dispatch selects V0lk3n.
+        path = ".work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/toolchain-report.json"
+        self.assertIn(path, self.ci)
+        self.assertIn("KERNEL_VARIANT: ${{ github.event_name == 'workflow_dispatch' && inputs.variant || 'crdroid' }}", self.ci)
 
     def test_abi_audit_remains_offline(self):
         src = (ROOT / "scripts/audit-module-abi.py").read_text(encoding="utf-8")

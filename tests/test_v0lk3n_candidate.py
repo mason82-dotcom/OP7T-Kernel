@@ -1,0 +1,102 @@
+"""Offline regression tests for the isolated V0lk3n source replacement candidate."""
+import re
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+LOCK = (ROOT / "config/v0lk3n.lock").read_text()
+SECURITY = (ROOT / "config/v0lk3n-security.fragment").read_text()
+BUILD = (ROOT / "scripts/build.sh").read_text()
+FETCH = (ROOT / "scripts/fetch-v0lk3n.sh").read_text()
+README = (ROOT / "docs/V0LK3N_CANDIDATE.md").read_text()
+WORKFLOW = (ROOT / ".github/workflows/nethunter-kernel.yml").read_text()
+
+class V0lk3nCandidateTests(unittest.TestCase):
+    def test_pinned_source_is_lineage_23_not_crdroid(self):
+        self.assertIn("V0LK3N_URL=https://github.com/V0lk3n/nethunter_kernel_oneplus_sm8150.git", LOCK)
+        self.assertIn("V0LK3N_REF=nethunter-lineage-23.2", LOCK)
+        self.assertRegex(LOCK, r"(?m)^V0LK3N_SHA=[a-f0-9]{40}$")
+        self.assertIn("V0LK3N_SOURCE_ANDROID=16", LOCK)
+        self.assertIn("V0LK3N_TARGET_ANDROID=17", LOCK)
+
+    def test_enforced_signatures_never_downgraded(self):
+        for line in (
+            "CONFIG_MODULE_SIG=y",
+            "CONFIG_MODULE_SIG_ALL=y",
+            "CONFIG_MODULE_SIG_FORCE=y",
+            'CONFIG_MODULE_SIG_KEY="certs/signing_key.pem"',
+        ):
+            self.assertIn(line, SECURITY)
+        self.assertNotIn("CONFIG_MODULE_SIG_FORCE=n", SECURITY)
+        self.assertIn("V0lk3n gate: CONFIG_MODULE_SIG_FORCE=y required", BUILD)
+        self.assertIn("config/v0lk3n-security.fragment", BUILD)
+
+    def test_source_isolated_from_crdroid_and_kernelsu(self):
+        self.assertIn('.work/v0lk3n-kernel', FETCH)
+        self.assertIn('.work/v0lk3n-kernel', BUILD)
+        self.assertIn('out-v0lk3n-$PROFILE', BUILD)
+        self.assertIn('artifacts/v0lk3n-$PROFILE', BUILD)
+        self.assertIn('if [[ "$KERNEL_VARIANT" == v0lk3n ]]', BUILD)
+        self.assertNotIn("prepare-kernelsu-next.sh", FETCH)
+        self.assertIn("CONFIG_KSU=y", BUILD)  # explicit failure if unexpectedly enabled
+        self.assertIn("refusing mixed profiles", BUILD)
+
+    def test_manual_ci_uses_separate_candidate_paths(self):
+        self.assertIn("options: [v0lk3n, crdroid]", WORKFLOW)
+        self.assertIn("default: v0lk3n", WORKFLOW)
+        self.assertIn('description: "Kernel source: v0lk3n (LineageOS 23.2 experimental; not flashable)"', WORKFLOW)
+        self.assertIn("  workflow_dispatch:", WORKFLOW)
+        variant = "github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n'"
+        self.assertGreaterEqual(WORKFLOW.count(variant), 11)
+        self.assertNotIn(".work/artifacts/${{ matrix.profile }}/", WORKFLOW)
+        self.assertNotIn(".work/out-${{ matrix.profile }}/", WORKFLOW)
+        self.assertIn('STAGE="$ROOT/.work/module-stage-v0lk3n-$PROFILE"', BUILD)
+
+    def test_narrow_source_patch_is_pinned_and_fail_closed(self):
+        patch = (ROOT / "patches/v0lk3n-build-compile-preflight.patch").read_text()
+        script = (ROOT / "scripts/prepare-v0lk3n-build.sh").read_text()
+        self.assertIn("git -C \"$KERNEL\" apply --check \"$PATCH\"", script)
+        self.assertIn("git -C \"$KERNEL\" apply --reverse --check \"$PATCH\"", script)
+        self.assertIn("V0lk3n source worktree is dirty; refusing patch", script)
+        self.assertEqual(patch.count("diff --git "), 4)
+        self.assertIn("+\t\t$(HDD_INC) \\", patch)
+        self.assertIn("+\t\t$(WMA_INC) \\", patch)
+        self.assertIn("+DTC_FLAGS += -@", patch)
+        self.assertIn("+/ {", patch)
+        self.assertIn('"${#MODIFIED[@]}" != 4', script)
+        self.assertIn('"drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c"', script)
+        # get_task_cred() is NOT exported by the pinned kernel; the narrow
+        # fix must preserve the current-caller CAP_NET_RAW authorization.
+        self.assertIn("drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c", patch)
+        self.assertIn("-\tcred = get_task_cred(task);", patch)
+        self.assertIn("+\tif (task && task != current) {", patch)
+        self.assertIn("+\tif (!capable(CAP_NET_RAW)) {", patch)
+        self.assertIn("+\t\treturn QDF_STATUS_E_PERM;", patch)
+        self.assertNotIn("+\tcred = get_task_cred(task);", patch)
+        self.assertNotIn("EXPORT_SYMBOL(get_task_cred)", patch)
+        self.assertIn('"scripts/Makefile.lib"', script)
+        self.assertIn("bash \"$ROOT/scripts/prepare-v0lk3n-build.sh\"", BUILD)
+        self.assertIn("v0lk3n-source-patch.sha256", WORKFLOW)
+
+    def test_external_dtc_fails_closed_without_overlay_fixups(self):
+        script = (ROOT / "scripts/check-v0lk3n-dtc.sh").read_text()
+        self.assertIn("missing_kernel_base_label", script)
+        self.assertIn('fdtget -t s "$TMP/external-target.dtbo" /__fixups__ missing_kernel_base_label', script)
+        self.assertIn('"$DTC_BIN" -@ -I dts -O dtb', script)
+        self.assertIn("V0lk3n DTC gate: missing valid external-target fixup", script)
+        self.assertIn('bash "$ROOT/scripts/check-v0lk3n-dtc.sh"', BUILD)
+        self.assertIn('KARGS+=(DTC_EXT="$DTC_EXT")', BUILD)
+        self.assertIn('external-dtc-toolchain.txt', WORKFLOW)
+        self.assertIn('device-tree-compiler', WORKFLOW)
+        self.assertIn('Verify external Device Tree overlay compiler', WORKFLOW)
+        self.assertIn('scripts/check-v0lk3n-dtc.sh', WORKFLOW)
+
+    def test_readonly_and_incompatibility_documented(self):
+        for term in ("flash_ready=false", "Android 16", "Android 17", "185", "Magisk"):
+            self.assertIn(term, README)
+        self.assertIn("git -C \"$KERNEL\" checkout --detach \"$V0LK3N_SHA\"", FETCH)
+        self.assertIn("--submodules", FETCH)
+
+
+if __name__ == "__main__":
+    unittest.main()

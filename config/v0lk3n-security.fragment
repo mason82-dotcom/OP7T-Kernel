@@ -1,0 +1,9 @@
+# V0lk3n's lineage-23.2 vendor/oplus.config contains "# CONFIG_MODULE_SIG is not set".
+# Override this ONLY for experimental local artifact compilation; never lower ROM signing policy.
+# The generated build key is NOT trusted by the installed crDroid kernel/bootloader.
+CONFIG_MODULES=y
+CONFIG_MODULE_SIG=y
+CONFIG_MODULE_SIG_ALL=y
+CONFIG_MODULE_SIG_FORCE=y
+CONFIG_MODULE_SIG_SHA512=y
+CONFIG_MODULE_SIG_KEY="certs/signing_key.pem"

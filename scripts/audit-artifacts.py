@@ -94,7 +94,22 @@ def module_metadata(path, relative):
     }
 
 
-def collect(root, expected_sha, profile, require_signed=False, require_stripped=False):
+def collect_dtbo_files(root, required=False):
+    """Read-only DTBO acceptance: require actual archived overlay FDTs."""
+    dtbos = sorted((root / "dtbos").rglob("*.dtbo"))
+    if required and not dtbos:
+        raise ValueError("V0lk3n build has no captured DTBO overlays")
+    for dtbo in dtbos:
+        with dtbo.open("rb") as stream:
+            header = stream.read(8)
+        total_size = int.from_bytes(header[4:8], "big") if len(header) == 8 else 0
+        if (len(header) != 8 or header[:4] != bytes.fromhex("d00dfeed")
+                or not 40 <= total_size <= dtbo.stat().st_size):
+            raise ValueError(f"Invalid DTBO FDT header or size: {dtbo.name}")
+    return dtbos
+
+
+def collect(root, expected_sha, profile, require_signed=False, require_stripped=False, require_dtbo=False):
     image = root / "Image"
     if not image.is_file():
         raise ValueError("Missing raw arm64 Image")
@@ -122,6 +137,7 @@ def collect(root, expected_sha, profile, require_signed=False, require_stripped=
     if not SHA.fullmatch(commit) or commit != expected_sha:
         raise ValueError(f"Kernel source mismatch: {commit}")
     dtbs = sorted((root / "dtbs").rglob("*.dtb"))
+    dtbos = collect_dtbo_files(root, require_dtbo)
     modules = sorted((root / "modules").rglob("*.ko"))
     if not dtbs:
         raise ValueError("No DTBs captured; packaging must be blocked")
@@ -168,6 +184,9 @@ def collect(root, expected_sha, profile, require_signed=False, require_stripped=
         "final_config": cfg,
         "dtb_count": len(dtbs),
         "dtbs": [{"path": str(p.relative_to(root)), "sha256": sha256_file(p)} for p in dtbs],
+        "dtbo_count": len(dtbos),
+        "dtbos": [{"path": str(p.relative_to(root)), "sha256": sha256_file(p)} for p in dtbos],
+        "dtbo_required": require_dtbo,
         "module_count": len(modules),
         "signed_module_count": sum(m["has_embedded_signature"] for m in module_details),
         "module_strip_debug_required": require_stripped,
@@ -192,7 +211,7 @@ def collect(root, expected_sha, profile, require_signed=False, require_stripped=
              if signature_load_blocked else [])
             + [
             "Module signer and vermagic cannot establish ABI or trusted-key compatibility with the installed ROM",
-            "DTBs are not yet matched with the exact installed ROM boot image",
+            "DTBs and DTBOs are not yet matched with the exact installed ROM boot image",
             "Never flash Image, DTBs or modules from this report directly",
             ]
         ),
@@ -208,16 +227,19 @@ def main():
                         help="Fail if any staged module is unsigned or Qualcomm WLAN lacks signing key ID")
     parser.add_argument("--require-stripped", action="store_true",
                         help="Fail if final staged modules have ELF debug sections or inspection is unavailable")
+    parser.add_argument("--require-dtbo", action="store_true",
+                        help="Fail if no valid DTBO overlays were captured (required for V0lk3n)")
     args = parser.parse_args()
     try:
         if not SHA.fullmatch(args.expected_sha):
             raise ValueError("Expected upstream SHA must contain exactly 40 lowercase hex digits")
         artifact_dir = args.artifact_dir.resolve(strict=True)
         report = collect(artifact_dir, args.expected_sha, args.profile,
-                         require_signed=args.require_signed, require_stripped=args.require_stripped)
+                         require_signed=args.require_signed, require_stripped=args.require_stripped,
+                         require_dtbo=args.require_dtbo)
         output = artifact_dir / "artifact-report.json"
         output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        print(f"Raw artifact audit: {report['module_count']} modules, {report['signed_module_count']} signed, {report['dtb_count']} DTBs")
+        print(f"Raw artifact audit: {report['module_count']} modules, {report['signed_module_count']} signed, {report['dtb_count']} DTBs, {report['dtbo_count']} DTBOs")
         print("Release state: RAW_ARTIFACT_ONLY_UNVERIFIED; flash_ready=false")
         return 0
     except (OSError, ValueError) as exc:

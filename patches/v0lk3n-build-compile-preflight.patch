@@ -1,0 +1,101 @@
+diff --git a/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts b/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts
+--- a/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts
++++ b/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts
+@@ -13,6 +13,9 @@
+ /dts-v1/;
+ /plugin/;
+ 
++/ {
++};
++
+ #include <dt-bindings/clock/qcom,gcc-sm8150.h>
+ #include <dt-bindings/clock/qcom,camcc-sm8150.h>
+ #include <dt-bindings/clock/qcom,rpmh.h>
+diff --git a/drivers/staging/qcacld-3.0/Kbuild b/drivers/staging/qcacld-3.0/Kbuild
+--- a/drivers/staging/qcacld-3.0/Kbuild
++++ b/drivers/staging/qcacld-3.0/Kbuild
+@@ -2065,6 +2065,8 @@
+ LINUX_INC :=	-I $(srctree)/include
+ 
+ INCS := -I $(srctree)/$(WLAN_ROOT)/inc \
++		$(HDD_INC) \
++		$(WMA_INC) \
+ 		$(EPPING_INC) \
+ 		$(QAL_INC) \
+ 		$(QDF_INC) \
+diff --git a/scripts/Makefile.lib b/scripts/Makefile.lib
+--- a/scripts/Makefile.lib
++++ b/scripts/Makefile.lib
+@@ -273,6 +273,12 @@
+ # Silence warnings
+ DTC_FLAGS += -q
+ 
++# V0lk3n vendor overlays reference labels in the base tree.
++# Preserve external fixups and base symbols for the DTO resolver.
++ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
++DTC_FLAGS += -@
++endif
++
+ # Disable noisy checks by default
+ ifeq ($(KBUILD_ENABLE_EXTRA_GCC_CHECKS),)
+ DTC_FLAGS += -Wno-unit_address_vs_reg \
+diff --git a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c
+--- a/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c
++++ b/drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_inject_security.c
+@@ -173,37 +173,27 @@
+  * Return: QDF_STATUS_SUCCESS if authorized, error code otherwise
+  */
+ QDF_STATUS hdd_check_injection_capability(struct task_struct *task)
+ {
+-	const struct cred *cred;
+-	bool has_capability = false;
+-
+-	hdd_security_debug("Checking injection capabilities");
+-
+-	/* Use current task if none specified */
+-	if (!task)
+-		task = current;
+-
+-	/* Get task credentials */
+-	cred = get_task_cred(task);
+-	if (!cred) {
+-		hdd_security_err("Failed to get task credentials");
+-		return QDF_STATUS_E_FAILURE;
+-	}
+-
+-	/* Check for CAP_NET_RAW capability */
+-	has_capability = capable(CAP_NET_RAW);
+-	
+-	put_cred(cred);
+-
+-	if (!has_capability) {
+-		hdd_security_warn("Process lacks CAP_NET_RAW capability (PID: %d, UID: %d)",
+-				  task->pid, from_kuid(&init_user_ns, task_uid(task)));
+-		return QDF_STATUS_E_PERM;
+-	}
+-
+-	hdd_security_debug("Process has required capabilities (PID: %d, UID: %d)",
+-			   task->pid, from_kuid(&init_user_ns, task_uid(task)));
++	hdd_security_debug("Checking injection capabilities");
++
++	/*
++	 * capable() checks the caller's credentials, not an arbitrary task.
++	 * Reject requests for another task rather than incorrectly authorizing
++	 * them using the capabilities of the calling process.
++	 */
++	if (task && task != current) {
++		hdd_security_warn("Frame injection capability checks require the current task");
++		return QDF_STATUS_E_PERM;
++	}
++
++	/* Preserve the CAP_NET_RAW gate; do not export internal cred symbols. */
++	if (!capable(CAP_NET_RAW)) {
++		hdd_security_warn("Process lacks CAP_NET_RAW capability");
++		return QDF_STATUS_E_PERM;
++	}
++
++	hdd_security_debug("Process has required CAP_NET_RAW capability");
+ 	return QDF_STATUS_SUCCESS;
+ }
+ 
+ /**

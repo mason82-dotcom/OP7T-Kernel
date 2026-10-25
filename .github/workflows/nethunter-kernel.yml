@@ -11,6 +11,12 @@ on:
         default: baseline
         required: true
         options: [baseline, core, external]
+      variant:
+        description: "Kernel source: v0lk3n (LineageOS 23.2 experimental; not flashable)"
+        type: choice
+        default: v0lk3n
+        required: true
+        options: [v0lk3n, crdroid]
 
 concurrency:
   group: kernel-${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
@@ -25,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Shell syntax
-        run: bash -n scripts/fetch-source.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
+        run: bash -n scripts/fetch-source.sh scripts/fetch-v0lk3n.sh scripts/prepare-v0lk3n-build.sh scripts/check-v0lk3n-dtc.sh scripts/build.sh scripts/device-audit.sh scripts/device-module-audit.sh
       - name: Python config validation tests
         run: python3 -m unittest discover -s tests -v
       - name: Version and SHA lock
@@ -36,9 +42,13 @@ jobs:
           test "$ROM_ANDROID" = 17
           test "$ROM_CRDROID" = 13
           [[ "$UPSTREAM_SHA" =~ ^[a-f0-9]{40}$ ]]
+          source config/v0lk3n.lock
+          [[ "$V0LK3N_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$V0LK3N_SOURCE_ANDROID" = 16
+          test "$V0LK3N_TARGET_ANDROID" = 17
 
   build:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.head_ref != 'feature/hotdog-v0lk3n-nethunter-source')
     needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 180
@@ -55,7 +65,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison flex make build-essential git python3 \
             libelf-dev libssl-dev binutils kmod clang-14 lld-14 llvm-14 \
-            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi device-tree-compiler
+      - name: Verify external Device Tree overlay compiler
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' }}
+        run: bash scripts/check-v0lk3n-dtc.sh
       - name: Build pinned kernel (not a boot image)
         env:
           CC: clang-14
@@ -67,6 +80,7 @@ jobs:
           STRIP: llvm-strip-14
           JOBS: 2
           PROFILE: ${{ matrix.profile }}
+          KERNEL_VARIANT: ${{ github.event_name == 'workflow_dispatch' && inputs.variant || 'crdroid' }}
         run: |
           mkdir -p .work/ci
           set -o pipefail
@@ -76,8 +90,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p .work/ci-diagnostics
-          if test -s ".work/out-${{ matrix.profile }}/.config"; then
-            cp ".work/out-${{ matrix.profile }}/.config" ".work/ci-diagnostics/${{ matrix.profile }}.config"
+          if test -s ".work/out-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/.config"; then
+            cp ".work/out-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/.config" ".work/ci-diagnostics/${{ matrix.profile }}.config"
           fi
           if test -s ".work/ci/build-${{ matrix.profile }}.log"; then
             tail -n 2500 ".work/ci/build-${{ matrix.profile }}.log" > .work/ci-diagnostics/build-log-tail.txt
@@ -87,7 +101,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: hotdog-failed-build-${{ matrix.profile }}-${{ github.run_id }}
+          name: hotdog-failed-build-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}-${{ github.run_id }}
           path: .work/ci-diagnostics/
           if-no-files-found: warn
           retention-days: 3
@@ -95,23 +109,25 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: hotdog-report-${{ matrix.profile }}-${{ github.run_id }}
+          name: hotdog-report-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}-${{ github.run_id }}
           path: |
-            .work/artifacts/${{ matrix.profile }}/artifact-report.json
-            .work/artifacts/${{ matrix.profile }}/kernel.config
-            .work/artifacts/${{ matrix.profile }}/kernel.release
-            .work/artifacts/${{ matrix.profile }}/upstream-commit.txt
-            .work/artifacts/${{ matrix.profile }}/toolchain-report.json
-            .work/artifacts/${{ matrix.profile }}/signing-cert.x509
-            .work/artifacts/${{ matrix.profile }}/signing-cert.sha256
-            .work/artifacts/${{ matrix.profile }}/build-module-cms.json
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/artifact-report.json
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/kernel.config
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/kernel.release
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/upstream-commit.txt
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/toolchain-report.json
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/signing-cert.x509
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/signing-cert.sha256
+            .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/build-module-cms.json
+            .work/artifacts/v0lk3n-${{ matrix.profile }}/v0lk3n-source-patch.sha256
+            .work/artifacts/v0lk3n-${{ matrix.profile }}/external-dtc-toolchain.txt
           if-no-files-found: error
           retention-days: 7
       - name: Upload raw kernel and modules (manual only)
         if: success() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: hotdog-unverified-${{ matrix.profile }}-${{ github.sha }}
-          path: .work/artifacts/${{ matrix.profile }}/
+          name: hotdog-unverified-${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}-${{ github.sha }}
+          path: .work/artifacts/${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'v0lk3n' && 'v0lk3n-' || '' }}${{ matrix.profile }}/
           if-no-files-found: error
           retention-days: 7
