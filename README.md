@@ -10,11 +10,15 @@ This repository is the **build and patch workspace** for the **OnePlus 7T Pro (`
 
 - crDroid **v13.0 = Android 17**. **Android 13 was crDroid v9**, and using its old `13.0` AOSP branch here would be incorrect.
 - Official kernel: [crdroidandroid/android_kernel_oneplus_sm8150 branch 17.0](https://github.com/crdroidandroid/android_kernel_oneplus_sm8150/tree/17.0).
-- Lock: [config/upstream.lock](config/upstream.lock), SHA `1083c6c5906114c71b11a429898b111a1b1b8109` at time of project setup.
+- Experimental ROM-release alignment lock: [config/upstream.lock](config/upstream.lock), SHA `57037290bb57caefd3c337db3511fca5751fb4ef`. The previous tested pin was its direct parent `1083c6c5906114c71b11a429898b111a1b1b8109`.
 - Source Makefile: Linux 4.14.357.
 - Device build specifies `vendor/sm8150-perf_defconfig` **plus** `vendor/oplus.config`; boot kernel name **`Image`**, not `Image.gz-dtb`.
 - The base config **already includes** USB ConfigFS and HID; Qualcomm WLAN is a module with signature enforcement.
 - Only `hotdog` is in scope; **not** `hotdogg`/5G McLaren.
+
+The observed running hotdog kernel and reference-OTA WLAN module both report `4.14.357-perf-g57037290bb57`. The full SHA resolves to a commit in the official kernel repository dated 19 October 2026, directly after our previous pin. The current `17.0` branch HEAD points back to the **previous** pin. This supports only an isolated source-alignment experiment; a matching release string does not prove the installed partition or its signing certificate. The one-commit delta changes two OPlus charging resume source files and reverts a backward-RTC sleep-time clamp, so charging and suspend behavior require explicit review and later hardware testing before any release decision. See [source-pin experiment](docs/ROM_RELEASE_SOURCE_PIN.md).
+
+The stacked `feature/hotdog-kernelsu-next-rom-pin` branch compiles the KernelSU-Next profile against this ROM-release source pin. The existing KSU branch based on the earlier source remains separate and verified. Neither branch is a boot or flash candidate.
 
 ## Profiles
 
