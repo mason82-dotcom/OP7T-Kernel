@@ -194,8 +194,18 @@ while IFS= read -r -d '' dtb; do
   relative="${dtb#"$OUT/"}"
   install -D -m 0644 "$dtb" "$ART/dtbs/$relative"
 done < <(find "$OUT/arch/arm64/boot/dts" -type f -name '*.dtb' -print0)
+# Keep the overlay files separate from base DTBs. Copy only build output:
+# never synthesize or splice boot/DTBO images for the live device.
+while IFS= read -r -d '' dtbo; do
+  relative="${dtbo#"$OUT/"}"
+  install -D -m 0644 "$dtbo" "$ART/dtbos/$relative"
+done < <(find "$OUT/arch/arm64/boot/dts" -type f -name '*.dtbo' -print0)
 
-python3 "$ROOT/scripts/audit-artifacts.py" "$ART" --expected-sha "$UPSTREAM_SHA" --profile "$PROFILE" --require-signed --require-stripped
+if [[ "$KERNEL_VARIANT" == v0lk3n ]]; then
+  python3 "$ROOT/scripts/audit-artifacts.py" "$ART" --expected-sha "$UPSTREAM_SHA" --profile "$PROFILE" --require-signed --require-stripped --require-dtbo
+else
+  python3 "$ROOT/scripts/audit-artifacts.py" "$ART" --expected-sha "$UPSTREAM_SHA" --profile "$PROFILE" --require-signed --require-stripped
+fi
 mapfile -d '' -t SIGNED_MODULES < <(find "$ART/modules" -type f -name '*.ko' -print0 | sort -z)
 python3 "$ROOT/scripts/verify-build-module-cms.py" \
   --certificate "$ART/signing-cert.x509" \
