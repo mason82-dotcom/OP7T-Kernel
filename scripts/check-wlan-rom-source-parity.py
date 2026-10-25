@@ -132,8 +132,11 @@ def check_patch_on_revision(root, revision, patch):
 
 def qualify(root, patch, parent=PARENT_SHA, rom=ROM_SHA):
     root = Path(root).resolve(strict=True)
-    patch = Path(patch).resolve(strict=True)
-    if not root.is_dir() or not patch.is_file() or patch.is_symlink():
+    original_patch = Path(patch)
+    if original_patch.is_symlink() or not original_patch.is_file():
+        raise ParityError("Missing or symlinked candidate patch")
+    patch = original_patch.resolve(strict=True)
+    if not root.is_dir() or not patch.is_file():
         raise ParityError("Source or selected patch missing")
     if patch.stat().st_size > 65536:
         raise ParityError("Unexpectedly large candidate patch")
