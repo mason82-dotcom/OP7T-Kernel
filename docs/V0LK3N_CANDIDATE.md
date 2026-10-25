@@ -76,6 +76,14 @@ A new fix attempts to select the separate Ubuntu `device-tree-compiler` binary v
 
 The in-tree DTC remains unchanged. The previously reviewed V0lk3n source patch still affects three bounded files; neither module signing enforcement nor RTL/WLAN gates are bypassed. Any incompatible real DTS/DTBO, build failure, module trust, ABI mismatch or firmware mismatch must remain a blocker. The ability to create an overlay fixup does not prove that it resolves against the installed ROM, so `flash_ready=false` remains mandatory.
 
+### Fourth compilation attempt: MODPOST unexported symbol
+
+Manual [run 40232818349](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40232818349) **FAILED** late at `MODPOST 8 modules`: `ERROR: "get_task_cred" [drivers/staging/qcacld-3.0/wlan.ko] undefined!`. The external DTC preflight passed; real DTS compilation and `vmlinux` linking progressed, the `arch/arm64/boot/Image` target was generated inside transient CI output, and QCACLD `wlan.o` linked. None of those intermediary files passed full module/signing/ABI gates or was uploaded as a release-ready artifact. MODPOST also warned of four section mismatches requiring separate analysis.
+
+Root cause was verified from the pinned sources: `kernel/cred.c` defines `get_task_cred()` but does not export it to modules; the QCACLD `core/hdd/src/wlan_hdd_inject_security.c` unconditionally references it when checking frame-injection privileges. The retrieved credential object was not actually used for authorization: `capable(CAP_NET_RAW)` checked the *current* process. Calling this function with a noncurrent task could therefore misleadingly authorize on the wrong caller.
+
+The **fourth** path added to the strictly reviewed source patch removes the unexported credential getter/reference-counting code, rejects noncurrent task arguments and preserves `capable(CAP_NET_RAW)` with explicit permission-denied return. It does **not** export `get_task_cred`, relax capabilities, disable forced module signatures or change Kconfig. The fix remains an untested full-build hypothesis. There is a separate security concern in the pinned upstream `hdd_validate_injection_permissions()`: process-context capability checks are skipped in interrupt/softirq contexts. This needs independent security and call-path review; **do not treat frame injection or kernel images as ready for deployment merely because MODPOST passes**.
+
 ## Required before any hardware attempt
 
 Prove exact installed ROM partition provenance; inspect V0lk3n-versus-original `Image`, DTBs, modules, `Module.symvers`, `vermagic`, CRC, signing trust, firmware; reproduce the original boot layout/AVB and document recovery for both slots. Unless each independent gate passes, maintain `flash_ready=false`.
