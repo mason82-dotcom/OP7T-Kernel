@@ -1,6 +1,6 @@
 # Hotdog hardware evidence ledger (read-only)
 
-Last reconciled: **2026-10-24**. Repository target: **OnePlus 7T Pro `hotdog`**, Android 17 / crDroid 13. **No flash authorization**.
+Last reconciled: **2026-10-26**. Repository target: **OnePlus 7T Pro `hotdog`**, Android 17 / crDroid 13. **No flash authorization**.
 
 This file is the authoritative *project status of the evidence seen so far*, not a statement that uncollected original images or keys exist. The same ADB tests should **not** be requested again unless the device/ROM changes, an earlier observation is disputed, or a narrowly defined unanswered question requires a new observation. Follow the source comments for the actual user-provided results. Keep sensitive serials, full fingerprints, binaries and private keys out of this repository.
 
@@ -32,6 +32,8 @@ References: [Device/ROM evidence](https://github.com/mason82-dotcom/OP7T-Kernel/
 | CI-07 | **MERGED and CI PASS** | [PR #13](https://github.com/mason82-dotcom/OP7T-Kernel/pull/13) removes debug sections via Kbuild **before** module signing and enforces final ELF section/signature checks; [PR #14](https://github.com/mason82-dotcom/OP7T-Kernel/pull/14) documents the official crDroid build reference |
 | CI-08 | **PASS for one build's internal CRC consistency only** | The complete [experimental core artifact from run 40125985800](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40125985800) has 33 present checksum-verified members. The two uploaded modules match it byte for byte. All 394 `wlan.ko` and 65 `gspca_main.ko` imported CRC records agree with that same build's `Module.symvers`. The original ROM modules were not compared in this check. |
  
+| CI-09 | **PASS for V0lk3n candidate compilation and build-local artifact consistency only** | [Manual run 40241384958](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40241384958) produced 8 signed modules, 20 DTBs, 10 DTBOs with `flash_ready=false`. Both downloaded artifact ZIPs were independently opened: the raw ZIP's **53 SHA256SUMS entries validated**, its `artifact-report.json` matches the report ZIP byte-for-byte, and the build-CMS report lists 8/8 verified signatures against the build certificate. Read-only FDT-structure inspection of each of the 10 DTBOs found `__fixups__` properties; every external label named there exists in the generated, same-board-directory `sm8150.dtb` `__symbols__` table (zero unknown label names per pair). These checks are **internal to the new build**, NOT proof of runtime overlay application, firmware/board matching, module CRC parity with the installed ROM, or certificate trust. Four MODPOST section mismatches remain unclassified. |
+
 ### Build artifacts versus the original reference-OTA WLAN module
 
 The operator already extracted the reference OTA's `vendor_dlkm.img` and identified `qca_cld3_wlan.ko`; **do not request another basic ADB inventory**. [Original offline findings](https://github.com/mason82-dotcom/OP7T-Kernel/issues/3#issuecomment-6387373827). The extracted module was from a cryptographically checked *reference ZIP*, **not** from a proven matching installed partition.
