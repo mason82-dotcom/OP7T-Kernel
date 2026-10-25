@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-source "$ROOT/config/upstream.lock"
 PROFILE="${1:-baseline}"
 case "$PROFILE" in baseline|core|external) ;; *) echo "Usage: $0 {baseline|core|external}" >&2; exit 2 ;; esac
-KERNEL="$ROOT/.work/kernel"
-OUT="$ROOT/.work/out-$PROFILE"
-ART="$ROOT/.work/artifacts/$PROFILE"
+KERNEL_VARIANT="${KERNEL_VARIANT:-crdroid}"
+case "$KERNEL_VARIANT" in
+  crdroid)
+    source "$ROOT/config/upstream.lock"
+    KERNEL="$ROOT/.work/kernel"
+    OUT="$ROOT/.work/out-$PROFILE"
+    ART="$ROOT/.work/artifacts/$PROFILE"
+    ;;
+  v0lk3n)
+    source "$ROOT/config/v0lk3n.lock"
+    UPSTREAM_SHA="$V0LK3N_SHA"
+    KERNEL="$ROOT/.work/v0lk3n-kernel"
+    OUT="$ROOT/.work/out-v0lk3n-$PROFILE"
+    ART="$ROOT/.work/artifacts/v0lk3n-$PROFILE"
+    ;;
+  *) echo "KERNEL_VARIANT must be crdroid or v0lk3n" >&2; exit 2 ;;
+esac
 DEF="$KERNEL/arch/arm64/configs/vendor/sm8150-perf_defconfig"
 OPLUS="$KERNEL/arch/arm64/configs/vendor/oplus.config"
 CC_BIN="${CC:-clang}"
@@ -43,7 +56,13 @@ echo "LLVM utility path: $(command -v llvm-nm)"
 for command_name in make git python3 sha256sum readelf "$CC_BIN" "$LD_BIN" "$AR_BIN" "$NM_BIN" "$OBJCOPY_BIN" "$OBJDUMP_BIN" "$STRIP_BIN"; do
   command -v "$command_name" >/dev/null || { echo "Missing build tool: $command_name" >&2; exit 2; }
 done
-bash "$ROOT/scripts/fetch-source.sh"
+if [[ "$KERNEL_VARIANT" == v0lk3n ]]; then
+  # Never inject KernelSU Next into this variant; independent upstream source.
+  bash "$ROOT/scripts/fetch-v0lk3n.sh" --submodules
+  DEF="$KERNEL/nethunter/nethunter_defconfig"
+else
+  bash "$ROOT/scripts/fetch-source.sh"
+fi
 test -s "$DEF" && test -s "$OPLUS"
 rm -rf "$OUT" "$ART"
 mkdir -p "$OUT" "$ART"
@@ -63,6 +82,11 @@ make -C "$KERNEL" "${KARGS[@]}" vendor/sm8150-perf_defconfig
 FRAGMENTS=()
 if [[ "$PROFILE" != baseline ]]; then FRAGMENTS+=("$ROOT/config/nethunter-core.fragment"); fi
 if [[ "$PROFILE" == external ]]; then FRAGMENTS+=("$ROOT/config/nethunter-external.fragment"); fi
+if [[ "$KERNEL_VARIANT" == v0lk3n ]]; then
+  # Source's oplus.config has MODULE_SIG disabled. Re-enable enforcement,
+  # don't permit a signature-policy downgrade simply to compile NetHunter.
+  FRAGMENTS+=("$ROOT/config/v0lk3n-security.fragment")
+fi
 
 # Device BoardConfigCommon.mk specifies base config followed by vendor/oplus.config.
 (
@@ -73,6 +97,18 @@ make -C "$KERNEL" "${KARGS[@]}" olddefconfig
 VERIFY=(--config "$OUT/.config")
 for fragment in "${FRAGMENTS[@]}"; do VERIFY+=(--fragment "$fragment"); done
 python3 "$ROOT/scripts/verify-config.py" "${VERIFY[@]}"
+if [[ "$KERNEL_VARIANT" == v0lk3n ]]; then
+  grep -qx 'CONFIG_MODULE_SIG=y' "$OUT/.config" || {
+    echo "V0lk3n gate: CONFIG_MODULE_SIG=y required; refusing unsigned build" >&2; exit 2;
+  }
+  grep -qx 'CONFIG_MODULE_SIG_FORCE=y' "$OUT/.config" || {
+    echo "V0lk3n gate: CONFIG_MODULE_SIG_FORCE=y required" >&2; exit 2;
+  }
+  if grep -qx 'CONFIG_KSU=y' "$OUT/.config"; then
+    echo "V0lk3n-only variant unexpectedly includes KernelSU; refusing mixed profiles" >&2
+    exit 2
+  fi
+fi
 
 # Fast configuration-only acceptance path; never emits an Image, DTBs or modules.
 case "${CONFIG_ONLY:-0}" in
