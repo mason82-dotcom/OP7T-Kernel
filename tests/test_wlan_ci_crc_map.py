@@ -47,6 +47,8 @@ class CrcMapTests(unittest.TestCase):
             "wlan_module_sha256": self.built_sha,
             "built_Module_symvers_sha256": self.symvers_sha,
             "built_kernel_module_self_consistency": True,
+            "missing_exported_symbol_count": 0,
+            "mismatched_symbol_crc_count": 0,
             "built_module_symbols_versioned": 3,
             "matched_against_same_build_Module_symvers": 3,
             "flash_ready": False,
@@ -56,7 +58,13 @@ class CrcMapTests(unittest.TestCase):
         return {
             "schema": "hotdog-wlan-icnss-compile-attestation-v4",
             "upstream_sha": ROM_SHA,
-            "wlan_module": {"sha256": self.built_sha, "vermagic": NEW_RELEASE + FLAGS},
+            "wlan_module": {
+                "sha256": self.built_sha,
+                "vermagic": NEW_RELEASE + FLAGS,
+                "signed_and_stripped": True,
+            },
+            "installed_rom_module_abi_verified": False,
+            "signer_trust_on_installed_rom_verified": False,
             "flash_ready": False,
         }
 
@@ -143,6 +151,42 @@ class CrcMapTests(unittest.TestCase):
         files = self.fixture_inputs()
         with self.assertRaisesRegex(ValueError, "differs from expected"):
             COMP.compare(self.original, "f" * 64, *files)
+
+
+    def test_compare_rejects_non_string_vermagic_without_traceback(self):
+        for value in (None, 123, [], {}):
+            with self.subTest(vermagic=value):
+                files = self.fixture_inputs()
+                compiled = self.compiled_report()
+                compiled["wlan_module"]["vermagic"] = value
+                files[1].write_text(json.dumps(compiled))
+                with self.assertRaisesRegex(ValueError, "malformed"):
+                    COMP.compare(self.original, self.original_sha, *files)
+
+    def test_compare_rejects_unapproved_module_signing_claim(self):
+        files = self.fixture_inputs()
+        compiled = self.compiled_report()
+        compiled["wlan_module"]["signed_and_stripped"] = False
+        files[1].write_text(json.dumps(compiled))
+        with self.assertRaisesRegex(ValueError, "unsigned or malformed"):
+            COMP.compare(self.original, self.original_sha, *files)
+
+    def test_compare_rejects_nonzero_same_build_crc_errors(self):
+        for flag in ("missing_exported_symbol_count", "mismatched_symbol_crc_count"):
+            with self.subTest(flag=flag):
+                selfcheck = dict(self.selfcheck, **{flag: 1})
+                files = self.fixture_inputs()
+                files[2].write_text(json.dumps(selfcheck))
+                with self.assertRaisesRegex(ValueError, "attestations"):
+                    COMP.compare(self.original, self.original_sha, *files)
+
+    def test_compare_rejects_unverified_trust_claims(self):
+        files = self.fixture_inputs()
+        compiled = self.compiled_report()
+        compiled["signer_trust_on_installed_rom_verified"] = True
+        files[1].write_text(json.dumps(compiled))
+        with self.assertRaisesRegex(ValueError, "attestations"):
+            COMP.compare(self.original, self.original_sha, *files)
 
     def test_compare_strict_mode_never_implies_flash_ready(self):
         files = self.fixture_inputs()
