@@ -80,18 +80,29 @@ def compare(original_module, expected_original_sha256, built_map_file, compiled_
             or selfcheck.get("schema") != "hotdog-built-wlan-self-crc-v1"
             or selfcheck.get("kernel_source_sha") != ROM_SHA
             or selfcheck.get("built_kernel_module_self_consistency") is not True
+            or selfcheck.get("missing_exported_symbol_count") != 0
+            or selfcheck.get("mismatched_symbol_crc_count") != 0
             or selfcheck.get("flash_ready") is not False
             or compiled.get("schema") != "hotdog-wlan-icnss-compile-attestation-v4"
             or compiled.get("upstream_sha") != ROM_SHA
+            or compiled.get("installed_rom_module_abi_verified") is not False
+            or compiled.get("signer_trust_on_installed_rom_verified") is not False
             or compiled.get("flash_ready") is not False):
         raise ValueError("One or more mutually bound ROM-source CI attestations are invalid")
     wm = compiled.get("wlan_module")
-    if not isinstance(wm, dict):
-        raise ValueError("Compiled WLAN metadata is missing")
+    if (not isinstance(wm, dict)
+            or not isinstance(wm.get("vermagic"), str)
+            or not wm["vermagic"].strip()
+            or wm.get("signed_and_stripped") is not True
+            or not isinstance(built.get("kernel_release"), str)
+            or not built["kernel_release"].strip()
+            or type(built.get("imported_symbol_count")) is not int):
+        raise ValueError("Compiled WLAN metadata is missing, unsigned or malformed")
     if (built.get("rebuilt_wlan_module_sha256") != selfcheck.get("wlan_module_sha256")
             or built.get("rebuilt_wlan_module_sha256") != wm.get("sha256")
             or built.get("rebuilt_Module_symvers_sha256") != selfcheck.get("built_Module_symvers_sha256")
             or built.get("kernel_release") != selfcheck.get("kernel_release")
+            or built.get("installed_kernel_module_key_trust_verified") is not False
             or built.get("imported_symbol_count") != selfcheck.get("built_module_symbols_versioned")
             or built.get("imported_symbol_count") != selfcheck.get("matched_against_same_build_Module_symvers")
             or wm.get("vermagic", "").split(" ")[0] != built.get("kernel_release")
@@ -109,8 +120,10 @@ def compare(original_module, expected_original_sha256, built_map_file, compiled_
     if (rom.get("sha256") != expected_original_sha256
             or not rom.get("signature", {}).get("trailer_present")
             or not rom.get("has_versions_section")
-            or not isinstance(originals, dict) or not originals):
-        raise ValueError("Original OTA WLAN ELF missing valid signed symbol versions")
+            or not isinstance(originals, dict) or not originals
+            or not isinstance(rom.get("vermagic"), str)
+            or not rom["vermagic"].strip()):
+        raise ValueError("Original OTA WLAN ELF missing valid signed symbol versions or vermagic")
     built_symbols = {key: int(value, 16) for key, value in values.items()}
     common = set(built_symbols) & set(originals)
     mismatch = sorted(k for k in common if built_symbols[k] != originals[k])
