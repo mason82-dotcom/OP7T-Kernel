@@ -31,8 +31,10 @@ def number_field(field, value):
     return vi(field << 3) + vi(value)
 
 
-def payload(names, minor=0, partial=False):
-    manifest = number_field(12, minor) + number_field(16, int(partial))
+def payload(names, minor=0, partial=False, emit_partial=True):
+    manifest = number_field(12, minor)
+    if emit_partial:
+        manifest += number_field(16, int(partial))
     for name in names:
         partition = length_field(1, name.encode("ascii"))
         manifest += length_field(13, partition)
@@ -61,6 +63,27 @@ class PayloadInventoryTests(unittest.TestCase):
         self.assertTrue(result["full_payload_confirmed"])
         self.assertFalse(result["exact_installed_rom_provenance_verified"])
         self.assertFalse(result["flash_ready"])
+
+    def test_omitted_optional_partial_update_defaults_to_false(self):
+        # Real hotdog October 2026 OTA: minor=0, no field 16 in the manifest.
+        # Proto2 treats absent optional bool as false; don't mistake that
+        # for proof that these images are installed on the phone.
+        result = MOD.inspect(self.zip(payload(
+            ["LOGO", "boot", "dtbo", "vendor_dlkm"], emit_partial=False
+        )))
+        self.assertIsNone(result["partial_update_declared"])
+        self.assertEqual(0, result["payload_minor_version"])
+        self.assertTrue(result["full_payload_confirmed"])
+        self.assertFalse(result["all_installed_partitions_enumerated"])
+        self.assertFalse(result["exact_installed_rom_provenance_verified"])
+        self.assertFalse(result["flash_ready"])
+
+    def test_omitted_partial_update_with_delta_minor_not_full(self):
+        result = MOD.inspect(self.zip(payload(
+            ["boot"], minor=4, emit_partial=False
+        )))
+        self.assertIsNone(result["partial_update_declared"])
+        self.assertFalse(result["full_payload_confirmed"])
 
     def test_delta_payload_never_claims_full(self):
         result = MOD.inspect(self.zip(payload(["boot"], minor=4)))
@@ -92,6 +115,29 @@ class PayloadInventoryTests(unittest.TestCase):
     def test_invalid_partition_names_fail_closed(self):
         with self.assertRaisesRegex(MOD.PayloadError, "invalid"):
             MOD.inspect(self.zip(payload(["../vendor_dlkm"])))
+
+    def test_update_engine_platform_specific_safe_names(self):
+        # Android's required PartitionUpdate.partition_name is not limited
+        # to lowercase-starting Linux path components.
+        names = ["0boot", "LOGO", "xbl-config", "vendor_dlkm", "modem.1",
+                 "modem+firmware", "_firmware"]
+        report = MOD.inspect(self.zip(payload(names)))
+        self.assertEqual(sorted(names), report["partition_names"])
+        self.assertTrue(report["requested_partition_names_present"]["vendor_dlkm"])
+        self.assertFalse(report["flash_ready"])
+
+    def test_partition_names_reject_path_traversal_and_controls(self):
+        for name in ("/vendor", "../vendor_dlkm", "vendor/other", "a..b",
+                     "vendor.", "vendor\\\\name", "vendor:name", "name space",
+                     "a" * 65, "vendor\\nname", ""):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(MOD.PayloadError, "invalid"):
+                    MOD.inspect(self.zip(payload([name])))
+
+    def test_rejected_partitions_show_bounded_diagnostic(self):
+        with self.assertRaisesRegex(
+                MOD.PayloadError, "Unsafe or invalid partition name: 'vendor/other'"):
+            MOD.inspect(self.zip(payload(["vendor/other"])))
 
     def test_duplicate_zip_payload_bin_fails(self):
         import warnings

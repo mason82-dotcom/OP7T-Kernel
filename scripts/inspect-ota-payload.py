@@ -15,7 +15,10 @@ from zipfile import BadZipFile, ZipFile
 MAX_MANIFEST_BYTES = 16 * 1024 * 1024
 MAX_SIGNATURE_BYTES = 8 * 1024 * 1024
 MAX_PARTITIONS = 128
-PARTITION_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+# Android update_engine's PartitionUpdate.partition_name is a platform-specific
+# string, not necessarily a lowercase Linux directory name. Still disallow
+# path separators, traversal components, controls and oversized identifiers.
+PARTITION_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.+-]{0,63}$", re.ASCII)
 
 
 class PayloadError(ValueError):
@@ -81,8 +84,13 @@ def parse_partition(record):
                 name = value.decode("ascii")
             except UnicodeDecodeError as exc:
                 raise PayloadError("Non-ASCII partition name") from exc
-            if not PARTITION_NAME.fullmatch(name):
-                raise PayloadError("Unsafe or invalid partition name")
+            if (not PARTITION_NAME.fullmatch(name) or
+                    ".." in name or name.endswith(".")):
+                # Bounded literal representation helps diagnose official but
+                # unexpected partition names; do not interpret as a path.
+                raise PayloadError(
+                    f"Unsafe or invalid partition name: {name[:64]!r}"
+                )
             found.append(name)
     if len(found) != 1:
         raise PayloadError("Missing or repeated partition name")
@@ -146,7 +154,10 @@ def inspect(archive: Path):
         "partition_names": names,
         "requested_partition_names_present": {name: name in names for name in wanted},
         "partial_update_declared": partial,
-        "full_payload_confirmed": minor == 0 and partial is False,
+        # Android update_engine: minor 0 is a full payload. The optional proto2
+        # partial_update field defaults to false when absent, not "unknown".
+        # Full payload does NOT attest to all partitions on the installed phone.
+        "full_payload_confirmed": minor == 0 and partial is not True,
         "all_installed_partitions_enumerated": False,
         "ota_zip_sha256_verified": False,
         "images_extracted_or_validated": False,
