@@ -101,8 +101,8 @@ class CrcMapTests(unittest.TestCase):
     def test_export_refuses_unsigned_module(self):
         obj = self.elf(self.built_sha, self.values, NEW_RELEASE)
         obj["signature"]["trailer_present"] = False
-        with patch.object(EXP.SELF, "check", return_value=self.selfcheck), \\
-             patch.object(EXP.ABI, "inspect", return_value=obj):
+        with (patch.object(EXP.SELF, "check", return_value=self.selfcheck),
+              patch.object(EXP.ABI, "inspect", return_value=obj)):
             with self.assertRaisesRegex(ValueError, "invalid"):
                 EXP.generate(self.art)
 
