@@ -59,6 +59,8 @@ done
 if [[ "$KERNEL_VARIANT" == v0lk3n ]]; then
   # Never inject KernelSU Next into this variant; independent upstream source.
   bash "$ROOT/scripts/fetch-v0lk3n.sh" --submodules
+  # Reviewed, narrowly scoped build-only source fixes; still not ABI/DTBO validated.
+  bash "$ROOT/scripts/prepare-v0lk3n-build.sh"
   DEF="$KERNEL/nethunter/nethunter_defconfig"
 else
   bash "$ROOT/scripts/fetch-source.sh"
@@ -66,6 +68,9 @@ fi
 test -s "$DEF" && test -s "$OPLUS"
 rm -rf "$OUT" "$ART"
 mkdir -p "$OUT" "$ART"
+if [[ "$KERNEL_VARIANT" == v0lk3n ]]; then
+  sha256sum "$ROOT/patches/v0lk3n-build-compile-preflight.patch" | awk '{print $1}' > "$ART/v0lk3n-source-patch.sha256"
+fi
 # Toolchain provenance is evidence, NOT proof of installed-ROM compiler parity.
 python3 "$ROOT/scripts/audit-toolchain.py" --clang "$CC_BIN" --ld "$LD_BIN" \
   --output "$ART/toolchain-report.json"
