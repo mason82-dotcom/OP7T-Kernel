@@ -62,6 +62,7 @@ int netif_rx_ni(struct sk_buff *skb)
 """
 KBUILD = """
 HDD_OBJS := $(HDD_SRC_DIR)/wlan_hdd_tx_rx.o
+TXRX_OBJS := $(TXRX_DIR)/ol_txrx.o
 ifeq ($(CONFIG_LITHIUM), y)
 HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_rx_monitor.o
 endif
@@ -83,10 +84,39 @@ PATCH = (
 )
 
 
+DATAPATH = """
+static QDF_STATUS ol_txrx_vdev_register(struct cdp_soc_t *soc_hdl)
+{
+    vdev->rx = txrx_ops->rx.rx;
+    return QDF_STATUS_SUCCESS;
+}
+static void ol_rx_data_handler(struct ol_txrx_pdev_t *pdev)
+{
+    data_rx = peer->vdev->rx;
+    qdf_spin_unlock_bh(&peer->peer_info_lock);
+    ret = data_rx(osif_dev, buf);
+}
+static inline void
+ol_rx_data_cb(void *context, qdf_nbuf_t buf_list, uint16_t staid)
+{
+    ol_rx_data_handler(pdev, buf_list, staid);
+}
+void ol_rx_data_process(struct ol_txrx_peer_t *peer)
+{
+    /* T2H MSG running on SIRQ context */
+    if (!ol_cfg_is_rx_thread_enabled(pdev->ctrl_pdev)) {
+        ol_rx_data_handler(pdev, rx_buf_list, peer->local_id);
+    } else {
+        pkt->callback = ol_rx_data_cb;
+        cds_indicate_rxpkt(sched_ctx, pkt);
+    }
+}
+"""
+
 class MonitorRxSoftirqContextTests(unittest.TestCase):
     def inspect(self, **overrides):
         sample = dict(wlan=WLAN, dev=DEV, kbuild=KBUILD,
-                      profile=PROFILE, patch=PATCH)
+                      profile=PROFILE, patch=PATCH, datapath=DATAPATH)
         sample.update(overrides)
         return CHECK.inspect_sources(**sample)
 
@@ -96,10 +126,46 @@ class MonitorRxSoftirqContextTests(unittest.TestCase):
         self.assertTrue(result["original_last_skb_uses_netif_rx_ni"])
         self.assertTrue(result["kernel_netif_rx_ni_explicitly_drains_pending_softirq"])
         self.assertTrue(result["rfc_changes_last_skb_immediate_softirq_drain"])
+        self.assertTrue(result["legacy_rx_dispatch"]["threaded_path_uses_cds_indicate_rxpkt"])
+        self.assertTrue(result["legacy_rx_dispatch"]["rx_handler_unlocks_peer_bh_lock_before_callback"])
+        self.assertFalse(result["legacy_rx_dispatch"]["runtime_thread_selection_verified"])
         self.assertFalse(result["caller_cpu_context_verified"])
         self.assertFalse(result["caller_bh_and_napi_state_verified"])
         self.assertFalse(result["rfc_behavioral_equivalence_verified"])
         self.assertFalse(result["flash_ready"])
+
+    def test_selected_rx_thread_dispatch_is_source_only(self):
+        result = self.inspect()["legacy_rx_dispatch"]
+        self.assertTrue(result["direct_path_calls_ol_rx_data_handler"])
+        self.assertTrue(result["threaded_path_uses_cds_indicate_rxpkt"])
+        self.assertTrue(result["source_comment_mentions_T2H_SIRQ"])
+        self.assertFalse(result["runtime_callback_bh_state_verified"])
+        self.assertFalse(result["exact_hardware_monitor_path_verified"])
+
+    def test_missing_direct_or_threaded_branch_blocks(self):
+        with self.assertRaises(CHECK.ContextAuditError):
+            self.inspect(datapath=DATAPATH.replace(
+                "pkt->callback = ol_rx_data_cb;", "pkt->callback = other_cb;"
+            ))
+        with self.assertRaises(CHECK.ContextAuditError):
+            self.inspect(datapath=DATAPATH.replace(
+                "ol_cfg_is_rx_thread_enabled", "unknown_thread_choice"
+            ))
+
+    def test_callback_before_bh_unlock_or_wrong_binding_blocks(self):
+        with self.assertRaises(CHECK.ContextAuditError):
+            self.inspect(datapath=DATAPATH.replace(
+                "qdf_spin_unlock_bh(&peer->peer_info_lock);", ""
+            ))
+        with self.assertRaises(CHECK.ContextAuditError):
+            self.inspect(datapath=DATAPATH.replace(
+                "vdev->rx = txrx_ops->rx.rx;",
+                "vdev->rx = NULL;",
+            ))
+        with self.assertRaises(CHECK.ContextAuditError):
+            self.inspect(kbuild=KBUILD.replace(
+                "$(TXRX_DIR)/ol_txrx.o", "$(TXRX_DIR)/other.o"
+            ))
 
     def test_missing_or_double_callback_definition_fails(self):
         with self.assertRaises(CHECK.ContextAuditError):

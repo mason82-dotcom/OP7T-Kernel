@@ -36,3 +36,9 @@ The gated `wlan-monitor-rx-softirq` GitHub Actions job emits a small JSON report
 4. Hardware tests of ordinary Wi-Fi stability and authorized passive monitor reception before any runtime feature claims. This project does not assume packet injection works.
 
 **Source audit success is explicitly `rfc_behavioral_equivalence_verified=false`, `caller_bh_and_napi_state_verified=false`, `flash_ready=false`. No boot image creation, flashing, module signature bypass, AVB changes, or automatic merges.**
+
+## Legacy datapath branch analysis
+
+The pinned compiled `core/dp/txrx/ol_txrx.c` stores `txrx_ops->rx.rx` in `vdev->rx`. Its RX handler obtains this callback and releases the peer BH spinlock before invoking `data_rx(osif_dev, buf)`. The path is not single-mode: `ol_rx_data_process()` calls `ol_rx_data_handler()` directly when the RX thread is disabled; when enabled under `QCA_CONFIG_SMP` it submits `ol_rx_data_cb` through `cds_indicate_rxpkt()`. The source comment states T2H traffic may run in SIRQ context. These branches demonstrate **possible** execution paths, **not** which branch is active for monitor traffic on the physical device. Actual BH/NAPI state remains unknown.
+
+The static auditor now checks these dispatch anchors and emits a separate `legacy_rx_dispatch` object; all runtime-context flags remain false. If upstream callback assignment, dispatch, or lock ordering differs, the audit refuses to claim even static parity.

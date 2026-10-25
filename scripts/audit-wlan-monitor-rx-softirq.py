@@ -17,6 +17,7 @@ WLAN_PATH = "drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.c"
 DEV_PATH = "net/core/dev.c"
 KBUILD_PATH = "drivers/staging/qcacld-3.0/Kbuild"
 PROFILE_PATH = "drivers/staging/qcacld-3.0/configs/default_defconfig"
+DATAPATH_PATH = "drivers/staging/qcacld-3.0/core/dp/txrx/ol_txrx.c"
 PATCH_PATH = "patches/candidates/0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch"
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -36,7 +37,7 @@ def c_function(source, function):
     # Require exactly one C definition, not a comment, declaration or call.
     hit = require_once(
         source,
-        r"^[ \t]*(?:static[ \t]+)?(?:QDF_STATUS|int)"
+        r"^[ \t]*(?:static[ \t]+)?(?:inline[ \t]+)?(?:QDF_STATUS|int|void)"
         r"[ \t]+" + re.escape(function) +
         r"[ \t]*\([^;{}]*\)[ \t\n]*\{",
         "Missing or ambiguous function definition: " + function,
@@ -72,7 +73,58 @@ def check_rfc_patch(patch):
         raise ContextAuditError("Unexpected RFC added code or comment")
 
 
-def inspect_sources(wlan, dev, kbuild, profile, patch):
+def inspect_legacy_rx_dispatch(datapath, kbuild):
+    """Trace registrations to two *possible* legacy RX dispatch paths.
+
+    A source-visible dispatch choice does not prove which option or execution
+    context is active on the physical device.
+    """
+    if not isinstance(datapath, str):
+        raise ContextAuditError("Legacy ICNSS receive datapath source missing")
+    if "$(TXRX_DIR)/ol_txrx.o" not in kbuild:
+        raise ContextAuditError("Legacy ICNSS RX dispatch object not built")
+    register = c_function(datapath, "ol_txrx_vdev_register")
+    process = c_function(datapath, "ol_rx_data_process")
+    handler = c_function(datapath, "ol_rx_data_handler")
+    if "vdev->rx = txrx_ops->rx.rx;" not in register:
+        raise ContextAuditError("Monitor callback not stored in datapath vdev")
+    if ("data_rx = peer->vdev->rx;" not in handler or
+            "ret = data_rx(osif_dev, buf);" not in handler):
+        raise ContextAuditError("Legacy RX handler callback call changed")
+    assign = handler.index("data_rx = peer->vdev->rx;")
+    unlock = handler.find("qdf_spin_unlock_bh(&peer->peer_info_lock);", assign)
+    callback = handler.index("ret = data_rx(osif_dev, buf);")
+    if unlock < assign or callback < unlock:
+        raise ContextAuditError("Legacy RX callback BH lock ordering changed")
+    if not re.search(
+        r"ol_rx_data_cb\s*\([^;{}]*\)\s*\{[^}]*"
+        r"ol_rx_data_handler\(pdev,\s*buf_list,\s*staid\);",
+        datapath, re.DOTALL,
+    ):
+        raise ContextAuditError("RX thread callback indirection changed")
+    required = (
+        "if (!ol_cfg_is_rx_thread_enabled(pdev->ctrl_pdev))",
+        "ol_rx_data_handler(pdev, rx_buf_list, peer->local_id);",
+        "pkt->callback = ol_rx_data_cb;",
+        "cds_indicate_rxpkt(sched_ctx, pkt);",
+        "T2H MSG running on SIRQ context",
+    )
+    if any(text not in process for text in required):
+        raise ContextAuditError("ICNSS direct/threaded RX dispatch structure changed")
+    return {
+        "vdev_register_stores_hdd_rx_callback": True,
+        "rx_handler_invokes_registered_vdev_callback": True,
+        "rx_handler_unlocks_peer_bh_lock_before_callback": True,
+        "direct_path_calls_ol_rx_data_handler": True,
+        "threaded_path_uses_cds_indicate_rxpkt": True,
+        "source_comment_mentions_T2H_SIRQ": True,
+        "runtime_thread_selection_verified": False,
+        "runtime_callback_bh_state_verified": False,
+        "exact_hardware_monitor_path_verified": False,
+    }
+
+
+def inspect_sources(wlan, dev, kbuild, profile, patch, datapath):
     cb = c_function(wlan, "hdd_mon_rx_packet_cbk")
     capture = c_function(wlan, "hdd_set_pktcapture_cb")
     monitor = c_function(wlan, "hdd_set_mon_rx_cb")
@@ -126,7 +178,9 @@ def inspect_sources(wlan, dev, kbuild, profile, patch):
                      r"[ \t\n]*CONFIG_HELIUMPLUS[ \t]*:=[ \t]*y", profile):
         raise ContextAuditError("Selected ICNSS/HELIUMPLUS profile changed")
     check_rfc_patch(patch)
+    dispatch = inspect_legacy_rx_dispatch(datapath, kbuild)
     return {
+        "legacy_rx_dispatch": dispatch,
         "schema": "hotdog-monitor-rx-softirq-source-audit-v1",
         "pinned_kernel_source": PIN,
         "selected_rx_object": "drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.o",
@@ -189,7 +243,7 @@ def audit(kernel, project=ROOT):
     if original.is_symlink() or not original.is_file():
         raise ContextAuditError("Missing or linked approved RFC patch")
     files = {}
-    for name in (WLAN_PATH, DEV_PATH, KBUILD_PATH, PROFILE_PATH):
+    for name in (WLAN_PATH, DEV_PATH, KBUILD_PATH, PROFILE_PATH, DATAPATH_PATH):
         item = kernel / name
         if not item.is_file() or item.is_symlink():
             raise ContextAuditError("Pinned kernel source input unavailable")
@@ -197,7 +251,7 @@ def audit(kernel, project=ROOT):
     patch = original.read_text(encoding="utf-8")
     report = inspect_sources(
         files[WLAN_PATH], files[DEV_PATH], files[KBUILD_PATH],
-        files[PROFILE_PATH], patch,
+        files[PROFILE_PATH], patch, files[DATAPATH_PATH],
     )
     report["source_sha256"] = {
         name: hashlib.sha256(content.encode("utf-8")).hexdigest()
