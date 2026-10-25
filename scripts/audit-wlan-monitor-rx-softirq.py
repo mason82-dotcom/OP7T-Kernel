@@ -84,7 +84,7 @@ def inspect_sources(wlan, dev, kbuild, profile, patch):
         raise ContextAuditError("Callback skb-chain dispatch changed")
     if not re.search(
         r"if[ \t]*\([ \t]*skb->next[ \t]*\)[ \t]*\{"
-        r"[^}]*rxstat[ \t]*=[ \t]*netif_rx\(skb\);[ \t]*\}"
+        r"[^}]*rxstat[ \t]*=[ \t]*netif_rx\(skb\);\s*\}"
         r"[ \t]*else[ \t]*\{[^}]*"
         r"rxstat[ \t]*=[ \t]*netif_rx_ni\(skb\);",
         cb, re.DOTALL,
