@@ -14,7 +14,15 @@ On this branch only, the existing disposable `WLAN_ROM_PIN_EXPERIMENT=1 WLAN_PAT
 
 This is *only* an import-symbol comparison. It does not prove the original OTA module matches a booted kernel's exports, test monitor RX runtime scheduling, verify original signer against a trusted kernel certificate or establish flash eligibility.
 
-## Pi 5 commands after CI succeeds
+## Verified CI evidence (2026-10-25)
+
+GitHub Actions run [40192859423](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40192859423) completed successfully at head `0a70c74bc49a19959a6303813b533855054c3314`. The isolated Clang 14 job reported a signed/stripped rebuilt WLAN ELF, 20 DTBs, 2 signed modules and **394 imported WLAN CRCs exported** after same-build Module.symvers validation. It uploaded nine allowlisted metadata/config files in artifact [12600585123](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40192859423/artifacts/12600585123), named `hotdog-wlan-rom-source-compile-40192859423`. GitHub reported archive SHA-256 `2fc410f0ce30d35160ade61962d946b6f6d5bfa174c06dcc297488b938386f40` and 7-day retention through 2026-11-01.
+
+**Known blocker before the offline comparison:** CI used kernel release `4.14.357-perf-g57037290bb57-dirty`; the original reference OTA WLAN module reports `4.14.357-perf-g57037290bb57`. Even if every CRC matches, full vermagic parity fails until root cause and clean-source reproducibility are independently established. Do **not** strip or rewrite release markers to suppress this discrepancy.
+
+The successful CI run validates the originally uploaded map/export code. Subsequent comparison-validator changes on this draft require their own CI; do not present them as verified by that earlier run.
+
+## Pi 5 commands for the verified artifact
 
 ```bash
 cd ~/Projekte/OP7T-Kernel-PR40-Test
@@ -22,8 +30,8 @@ git fetch --no-tags origin research/hotdog-wlan-offline-crc-map-compare
 git switch --detach FETCH_HEAD
 
 mkdir -p .work/ci-rom-pinned-crcs
-gh run download RUN_ID --repo mason82-dotcom/OP7T-Kernel \
-  --name hotdog-wlan-rom-source-compile-RUN_ID \
+gh run download 40192859423 --repo mason82-dotcom/OP7T-Kernel \
+  --name hotdog-wlan-rom-source-compile-40192859423 \
   --dir .work/ci-rom-pinned-crcs
 
 set -o pipefail
@@ -37,6 +45,6 @@ python3 scripts/compare-wlan-build-crcs-to-rom.py \
 printf 'ABI report exit: %s\n' "${PIPESTATUS[0]}"
 ```
 
-Replace `RUN_ID` with the **successful new branch job's** workflow run ID, not an older baseline run. `2` means known mismatch, `3` means invalid/unbound/missing evidence, `4` means no detected symbol blocker but unknown real-world compatibility remains. Never flash or force-load based on any of these results.
+The example selects the already successful **2026-10-25** run, not an older source-pin build. If it has expired, use a newly verified run and matching artifact name. Before running the comparison, confirm the original module exists locally under the stated path and matches the independently documented SHA-256. `2` means known mismatch, `3` means invalid/unbound/missing evidence, `4` means no detected symbol blocker but unknown real-world compatibility remains. Never flash or force-load based on any of these results.
 
 The previously exported `original-wlan-crcs.json` remains local. The tool reparses the original ELF and requires the independently recorded SHA to avoid silently using an unrelated CRC JSON file. Original OTA provenance and physically installed partitions still require independent device/binary attestation.
