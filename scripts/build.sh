@@ -66,14 +66,13 @@ case "${WLAN_PATCH_EXPERIMENT:-0}" in
       exit "$code"
     }
     trap cleanup_wlan_worktree EXIT
+    # On hotdog the pinned default profile selects ICNSS/HELIUMPLUS,
+    # not LITHIUM. Only the ICNSS callback TU compiled in the previous
+    # experiment. Never treat unbuilt LITHIUM source patches as active.
     git -C "$EXP_TREE" apply \
-      "$ROOT/patches/qcacld-3.0/0001-monitor-vdev-null-and-error-guards.patch" \
       "$ROOT/patches/candidates/0002-qcacld-hotdog-icnss-monitor-rx-rfc.patch"
     git -C "$EXP_TREE" diff --check
-    expected_paths="$(printf '%s\n' \
-      'drivers/staging/qca-wifi-host-cmn/dp/wifi3.0/dp_main.c' \
-      'drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_rx_monitor.c' \
-      'drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.c')"
+    expected_paths='drivers/staging/qcacld-3.0/core/hdd/src/wlan_hdd_tx_rx.c'
     actual_paths="$(git -C "$EXP_TREE" diff --name-only)"
     [[ "$actual_paths" == "$expected_paths" ]] || {
       echo "WLAN worktree contains unapproved changed paths" >&2
@@ -189,7 +188,7 @@ done < <(find "$OUT/arch/arm64/boot/dts" -type f -name '*.dtb' -print0)
 
 python3 "$ROOT/scripts/audit-artifacts.py" "$ART" --expected-sha "$UPSTREAM_SHA" --profile "$PROFILE" --require-signed --require-stripped
 
-# Compiler attestation must find all three changed translation units and
+# Compiler attestation must find the one selected ICNSS translation unit and
 # the signed/stripped audited wlan.ko; never claim codegen merely from Image.
 if [[ "${WLAN_PATCH_EXPERIMENT:-0}" == 1 ]]; then
   python3 "$ROOT/scripts/audit-wlan-compile.py" \
