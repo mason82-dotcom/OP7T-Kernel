@@ -87,7 +87,7 @@ def examine(artifacts, reference_module, reference_module_sha256):
         raise PairAuditError("Cannot compare a module to itself")
     if sha256_file(built) != report["wlan_module_sha256"]:
         raise PairAuditError("Built WLAN module no longer matches self-CRC attestation")
-    if sha256_file(symvers_file) != report["built_Module.symvers_sha256"]:
+    if sha256_file(symvers_file) != report["built_Module_symvers_sha256"]:
         raise PairAuditError("Built Module.symvers differs from self-CRC attestation")
     original_sha = sha256_file(reference)
     if original_sha != reference_module_sha256:
