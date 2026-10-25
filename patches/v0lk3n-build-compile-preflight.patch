@@ -1,7 +1,7 @@
 diff --git a/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts b/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts
 --- a/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts
 +++ b/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts
-@@ -13,5 +13,8 @@
+@@ -13,6 +13,9 @@
  /dts-v1/;
  /plugin/;
  
@@ -10,12 +10,32 @@ diff --git a/arch/arm64/boot/dts/18821/sm8150-mtp-overlay.dts b/arch/arm64/boot/
 +
  #include <dt-bindings/clock/qcom,gcc-sm8150.h>
  #include <dt-bindings/clock/qcom,camcc-sm8150.h>
+ #include <dt-bindings/clock/qcom,rpmh.h>
 diff --git a/drivers/staging/qcacld-3.0/Kbuild b/drivers/staging/qcacld-3.0/Kbuild
 --- a/drivers/staging/qcacld-3.0/Kbuild
 +++ b/drivers/staging/qcacld-3.0/Kbuild
-@@ -2067,4 +2067,5 @@
+@@ -2065,6 +2065,8 @@
+ LINUX_INC :=	-I $(srctree)/include
+ 
  INCS := -I $(srctree)/$(WLAN_ROOT)/inc \
 +		$(HDD_INC) \
++		$(WMA_INC) \
  		$(EPPING_INC) \
  		$(QAL_INC) \
  		$(QDF_INC) \
+diff --git a/scripts/Makefile.lib b/scripts/Makefile.lib
+--- a/scripts/Makefile.lib
++++ b/scripts/Makefile.lib
+@@ -273,6 +273,12 @@
+ # Silence warnings
+ DTC_FLAGS += -q
+ 
++# V0lk3n vendor overlays reference labels in the base tree.
++# Preserve external fixups and base symbols for the DTO resolver.
++ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
++DTC_FLAGS += -@
++endif
++
+ # Disable noisy checks by default
+ ifeq ($(KBUILD_ENABLE_EXTRA_GCC_CHECKS),)
+ DTC_FLAGS += -Wno-unit_address_vs_reg \
