@@ -211,11 +211,14 @@ class BuiltWlanSelfCrcTests(unittest.TestCase):
 
     def test_cli_writes_only_report_and_refuses_overwrite(self):
         with redirect_stdout(io.StringIO()):
-            first = GATE.main_from_artifacts(self.art) if hasattr(
-                GATE, "main_from_artifacts") else None
-        # Invoking the public CLI entrypoint with an argument parser is tested
-        # through the resulting report policy; do not mutate any device state.
-        self.assertIsNone(first)
+            self.assertEqual(0, GATE.main(["--artifacts", str(self.art)]))
+        metadata = json.loads(
+            (self.art / "built-wlan-self-crc-report.json").read_text()
+        )
+        self.assertFalse(metadata["flash_ready"])
+        self.assertTrue(metadata["built_kernel_module_self_consistency"])
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(2, GATE.main(["--artifacts", str(self.art)]))
         self.assertNotIn("fastboot", (ROOT / "scripts/audit-wlan-built-crcs.py").read_text())
         self.assertNotIn("adb shell", (ROOT / "scripts/audit-wlan-built-crcs.py").read_text())
 
