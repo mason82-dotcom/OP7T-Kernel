@@ -57,6 +57,11 @@ for command_name in make git python3 sha256sum readelf "$CC_BIN" "$LD_BIN" "$AR_
   command -v "$command_name" >/dev/null || { echo "Missing build tool: $command_name" >&2; exit 2; }
 done
 if [[ "$KERNEL_VARIANT" == v0lk3n ]]; then
+  # In-tree Linux 4.14 DTC rejects unresolved &label overlay targets at parse
+  # time; -@ alone does not fix it. Verify an external compiler emits fixups.
+  DTC_EXT="${DTC_EXT:-dtc}"
+  export DTC_EXT
+  bash "$ROOT/scripts/check-v0lk3n-dtc.sh"
   # Never inject KernelSU Next into this variant; independent upstream source.
   bash "$ROOT/scripts/fetch-v0lk3n.sh" --submodules
   # Reviewed, narrowly scoped build-only source fixes; still not ABI/DTBO validated.
@@ -82,6 +87,15 @@ export KBUILD_BUILD_TIMESTAMP="$(date -u -d "@$SOURCE_DATE_EPOCH" '+%a %b %d %H:
 KARGS=(O="$OUT" ARCH=arm64 CC="$CC_BIN" LD="$LD_BIN" AR="$AR_BIN" NM="$NM_BIN"
   OBJCOPY="$OBJCOPY_BIN" OBJDUMP="$OBJDUMP_BIN" STRIP="$STRIP_BIN"
   CROSS_COMPILE="$CROSS64" CROSS_COMPILE_ARM32="$CROSS32")
+if [[ "$KERNEL_VARIANT" == v0lk3n ]]; then
+  # Pass as Kbuild's explicit command-line variable, not merely shell PATH.
+  KARGS+=(DTC_EXT="$DTC_EXT")
+  {
+    echo "dtc_path=$(command -v "$DTC_EXT")"
+    "$DTC_EXT" --version
+    sha256sum "$(command -v "$DTC_EXT")"
+  } > "$ART/external-dtc-toolchain.txt"
+fi
 
 make -C "$KERNEL" "${KARGS[@]}" vendor/sm8150-perf_defconfig
 FRAGMENTS=()
