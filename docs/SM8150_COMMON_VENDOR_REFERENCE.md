@@ -436,6 +436,47 @@ code-reference or runtime loader trace.
 
 **`flash_ready=false`**.
 
+### ELF A2DP string segment and `dlopen` import probe
+
+The [`audit-hotdog-elf-path-segment.py`](../scripts/audit-hotdog-elf-path-segment.py)
+script checks the same ZIP and ELF against their recorded SHA-256
+digests, maps the unique full NUL-delimited ODM A2DP string at ELF
+file offset **91,471 (`0x1654f`)** to any file-backed `PT_LOAD`
+segment and section header, and checks whether `dlopen`, `dlsym`
+or `android_dlopen_ext` are **undefined `SHT_DYNSYM`
+imports**. On a stripped/unavailable section table, symbol-import
+status stays **unknown** instead of being reported absent.
+
+Read-only Raspberry Pi command (no blob export or execution):
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  git show "${REF}:scripts/audit-hotdog-elf-path-segment.py" \
+    > "$DIR/audit-elf-segment.py.partial"
+  mv "$DIR/audit-elf-segment.py.partial" "$DIR/audit-elf-segment.py"
+
+  python3 "$DIR/audit-elf-segment.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    --expect-archive-sha256 c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078 \
+    --expect-elf-sha256 08a20a73c123c793d717f1b8e7078df1b9efb3853753fae7fac269d3a20a829f \
+    | tee "$DIR/audio-elf-segment-audit.json"
+)
+```
+
+`path_file_offset` is the **offset within the ELF member**, not
+the overall ZIP offset. `virtual_address` is the ELF **link-time**
+virtual address, not a runtime ASLR address. Even a `dlopen`
+import plus the A2DP string in `.rodata` would **not** establish
+an actual ARM instruction reference, a `dlopen` call with the A2DP
+path, or a successfully loaded common-vendor library. No firmware
+is modified; `flash_ready=false`.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
