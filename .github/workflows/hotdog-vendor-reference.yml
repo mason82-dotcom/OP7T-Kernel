@@ -1,0 +1,36 @@
+name: Hotdog GitLab vendor reference checks
+
+on:
+  push:
+    branches: [experiment/hotdog-aosp-clang-r596125]
+    paths:
+      - "config/hotdog-vendor-reference.json"
+      - "scripts/inspect-hotdog-vendor-zip.py"
+      - "tests/test_hotdog_vendor_zip.py"
+      - "docs/HOTDOG_GITLAB_VENDOR_REFERENCE.md"
+      - ".github/workflows/hotdog-vendor-reference.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-fixtures:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check reference metadata
+        run: python3 -m json.tool config/hotdog-vendor-reference.json >/dev/null
+      - name: Check ZIP inventory Python syntax
+        run: python3 -m py_compile scripts/inspect-hotdog-vendor-zip.py
+      - name: Run synthetic, network-free vendor archive checks
+        run: python3 -m unittest discover -s tests -p test_hotdog_vendor_zip.py -v
+      - name: Verify no proprietary archive is committed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files -- '*.zip' '*.img' '*.ko' | grep .; then
+            echo 'Proprietary/vendor binary files must not be committed' >&2
+            exit 1
+          fi
