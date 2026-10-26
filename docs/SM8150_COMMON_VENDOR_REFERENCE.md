@@ -400,6 +400,42 @@ It does **not** prove call sites, actual `dlopen` execution,
 linker namespace compatibility, matching common-vendor ELF contents
 or installed-ROM identity. **`flash_ready=false`.**
 
+### Confirmed exact embedded A2DP ODM path (Raspberry Pi, 2026-10-26)
+
+The user reran a bounded in-memory string scan of the exact hotdog
+ZIP SHA-256 `c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078`
+and the original 810,136-byte Audio HAL ELF SHA-256
+`08a20a73c123c793d717f1b8e7078df1b9efb3853753fae7fac269d3a20a829f`.
+Both checks **passed**, and no ELF was extracted, written or executed.
+
+| ELF raw substring | Confirmed locations / interpretation |
+| --- | --- |
+| `/odm/lib/liba2dpoffload.so` | **Exactly one full NUL-delimited printable string** at **ELF file offset 91,471** (hex **`0x1654f`**) |
+| `liba2dpoffload` | Exactly one, within the same full ODM string |
+| `/vendor/lib/liba2dpoffload.so` | **0** occurrences |
+| `dlopen` | 3 substrings: import-looking `dlopen` at 41,151; `%s: dlopen failed` at 122,935; `%s: failed to dlopen VNDK_FWK_LIB %s` at 184,740 |
+| `dlsym` | 33 substrings; includes `dlsym` at 41,158 and several diagnostic messages |
+| `/vendor/lib/` | 24 string occurrences, often referencing other sound libraries |
+| `libaudioEngineerTest` | 1 substring, full string `libaudioEngineerTest.so` at file offset 65,147 |
+
+**The ELF contains the complete expected ODM A2DP path.**
+The earlier direct dependency analysis remains simultaneously valid:
+**neither** the legacy vendor nor the ODM A2DP path appears in its
+24 `DT_NEEDED` names. A statically embedded, NUL-terminated path
+is compatible with runtime dynamic loading (e.g. `dlopen`), but
+the string's presence and nearby unrelated diagnostics do **not**
+prove a particular call site, execution path or whether loading
+succeeds. Also, this does **not** show that an ELF `DT_NEEDED`
+fixup was applied: it may have been intended for another source
+revision or been conditional/no-op for this blob.
+
+Next classify the ELF string's loadable segment, file section and
+virtual address and distinguish true `dlopen`/`dlsym` undefined
+dynamic symbols from plain text. This is still weaker than an ARM
+code-reference or runtime loader trace.
+
+**`flash_ready=false`**.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
