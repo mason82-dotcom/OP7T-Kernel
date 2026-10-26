@@ -19,7 +19,7 @@ MAX_BLOCKS = 1000
 ROOT = "proprietary_vendor_oneplus_hotdog-"
 PACKAGE_RE = re.compile(r"^\s*PRODUCT_PACKAGES\s*(?:\+=|:=|=)\s*(.*)$")
 BLOCK_RE = re.compile(r"(?m)^[ \t]*([a-zA-Z_]\w*)[ \t]*\{")
-NAME_RE = re.compile(r'(?m)^[ \t]*name[ \t]*:[ \t]*"([^"\n]+)"[ \t]*,?')
+NAME_RE = re.compile(r'(?m)(?:^|[,{])[ \t]*name[ \t]*:[ \t]*"([^"\n]+)"[ \t]*,?')
 SOURCE_RE = re.compile(r'(?m)\bsrcs?\s*:\s*\[([^\]]{0,8192})\]', re.S)
 QUOTED_RE = re.compile(r'"([^"\n]{1,500})"')
 PROPS = (
@@ -90,6 +90,56 @@ def logical_lines(text):
             continued = ""
     if continued:
         yield continued.strip()
+
+
+
+def without_comments(text):
+    """Remove Blueprint comments, retaining strings and newline positions."""
+    out = []
+    in_string = False
+    escaped = False
+    state = None
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < len(text) else ""
+        if state == "line":
+            if ch == "\n":
+                state = None
+                out.append(ch)
+            else:
+                out.append(" ")
+        elif state == "block":
+            if ch == "*" and nxt == "/":
+                out.extend((" ", " "))
+                i += 1
+                state = None
+            else:
+                out.append("\n" if ch == "\n" else " ")
+        elif in_string:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+        elif ch == "/" and nxt == "/":
+            state = "line"
+            out.extend((" ", " "))
+            i += 1
+        elif ch == "/" and nxt == "*":
+            state = "block"
+            out.extend((" ", " "))
+            i += 1
+        else:
+            out.append(ch)
+            if ch == '"':
+                in_string = True
+        i += 1
+    if in_string or state == "block":
+        raise VendorModuleError("Unterminated Blueprint string or comment")
+    return "".join(out)
 
 
 def find_end(text, start):
@@ -174,6 +224,7 @@ def inspect(path):
 
         observed = {name: [] for name in expected}
         for block_type, block, lineno in blocks:
+            block = without_comments(block)
             names = NAME_RE.findall(block)
             if len(names) != 1 or names[0] not in observed:
                 continue
