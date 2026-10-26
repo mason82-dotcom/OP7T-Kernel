@@ -6,7 +6,9 @@ on:
     paths:
       - "config/hotdog-vendor-reference.json"
       - "scripts/inspect-hotdog-vendor-zip.py"
+      - "scripts/inspect-hotdog-vendor-makefiles.py"
       - "tests/test_hotdog_vendor_zip.py"
+      - "tests/test_hotdog_vendor_makefiles.py"
       - "docs/HOTDOG_GITLAB_VENDOR_REFERENCE.md"
       - ".github/workflows/hotdog-vendor-reference.yml"
   workflow_dispatch:
@@ -23,9 +25,11 @@ jobs:
       - name: Check reference metadata
         run: python3 -m json.tool config/hotdog-vendor-reference.json >/dev/null
       - name: Check ZIP inventory Python syntax
-        run: python3 -m py_compile scripts/inspect-hotdog-vendor-zip.py
+        run: python3 -m py_compile scripts/inspect-hotdog-vendor-zip.py scripts/inspect-hotdog-vendor-makefiles.py
       - name: Run synthetic, network-free vendor archive checks
         run: python3 -m unittest discover -s tests -p test_hotdog_vendor_zip.py -v
+      - name: Run synthetic, network-free vendor Makefile checks
+        run: python3 -m unittest discover -s tests -p test_hotdog_vendor_makefiles.py -v
       - name: Verify no proprietary archive is committed
         shell: bash
         run: |
