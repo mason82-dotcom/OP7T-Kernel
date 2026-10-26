@@ -202,16 +202,16 @@ The 2026-10-26 local Makefile read returned:
   copyfile audit now prints up to 40 active (non-comment) lines.
 - hotdog-vendor.mk: **116,834 bytes**, **774 lines**, **761 heuristic
   matching lines**; previous 70-line sample showed
-  \`PRODUCT_COPY_FILES\` referencing ODM ACDB, sensors, Wi-Fi config,
+  `PRODUCT_COPY_FILES` referencing ODM ACDB, sensors, Wi-Fi config,
   camera calibration and firmware. The 761 matched physical lines
   are **not** 761 independently checked source-to-destination rules.
 
 Use the new **static, read-only** cross-check to count literal
-\`PRODUCT_COPY_FILES\` mappings, test their source filenames against
+`PRODUCT_COPY_FILES` mappings, test their source filenames against
 the ZIP directory, identify duplicate destination strings, and
 distinguish Make-generated/dynamic references from missing files.
 
-\`\`\`bash
+```bash
 (
   set -euo pipefail
   cd ~/Projekte/OP7T-Kernel-KSU-Review
