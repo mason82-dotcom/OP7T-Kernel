@@ -76,6 +76,50 @@ class A2DPLlvmTextTests(unittest.TestCase):
         self.assertEqual(r["loader_symbol_text_hit_count"], 0)
 
 
+    def test_exact_dlopen_dlsym_direct_branch_targets(self):
+        output = """\
+     9000: mov r0, r4
+     9004: bl b12a0 <audio_load_a2dp_stub>
+     9008: blx 0xb12b0 <audio_sym_stub>
+     900c: bl b12a0
+     9010: bx r3
+"""
+        result = mod.parse_disassembly(output)
+        dl = result["direct_plt_branch_targets"]["dlopen"]
+        sym = result["direct_plt_branch_targets"]["dlsym"]
+        self.assertEqual(dl["direct_branch_text_hits"], 2)
+        self.assertEqual(sym["direct_branch_text_hits"], 1)
+        self.assertEqual(dl["target_vaddr_hex"], "0xb12a0")
+        self.assertEqual(dl["caller_samples"][0]["instruction_vaddr_hex"], "0x9004")
+        self.assertEqual(dl["caller_samples"][0]["preceding_disassembly_lines"][-1],
+                         "9000: mov r0, r4")
+        self.assertFalse(dl["r0_a2dp_path_argument_verified"])
+
+    def test_direct_branch_only_not_embedded_hex_or_other_address(self):
+        output = """\
+    b12a0: bx lr
+    9000: bl 0xb12a1
+    9004: movw r1, #0xb12a0
+    9008: blx r3
+    900c: bl 0xb12a000
+    9010: bl b12a0
+"""
+        result = mod.parse_disassembly(output)
+        self.assertEqual(result["direct_plt_branch_targets"]["dlopen"]
+                         ["direct_branch_text_hits"], 1)
+
+    def test_gnu_branch_suffix_variants(self):
+        output = """\
+     9000: bl.w 000b12a0 <stub>
+     9004: b.w 000b12b0 <tail_stub>
+     9008: blx 0x000b12b0
+"""
+        result = mod.parse_disassembly(output)
+        self.assertEqual(result["direct_plt_branch_targets"]["dlopen"]
+                         ["direct_branch_text_hits"], 1)
+        self.assertEqual(result["direct_plt_branch_targets"]["dlsym"]
+                         ["direct_branch_text_hits"], 2)
+
     def test_discover_versioned_llvm19_in_path(self):
         with patch.object(mod.shutil, "which", side_effect=lambda name:
                           "/usr/bin/llvm-objdump-19" if name == "llvm-objdump-19" else None):
