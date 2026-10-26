@@ -243,7 +243,6 @@ def inspect(zip_path, common_dir, reference_path, expected_zip_sha256=None):
 
     checks = {
         "common_build_texts_git_blob_hash_verified": True,
-        "hotdog_zip_sha256_matches_user_observation": bool(expected_zip_sha256),
         "hotdog_audio_package_listed": HOTDOG_PACKAGE in package_tokens(hotdog_mk),
         "common_audio_package_listed": COMMON_PACKAGE in package_tokens(files["sm8150-common-vendor.mk"]),
         "hotdog_audio_module_exactly_once": len(hotdog_blocks) == 1,
@@ -270,6 +269,7 @@ def inspect(zip_path, common_dir, reference_path, expected_zip_sha256=None):
     return {
         "schema": "op7t-hotdog-common-audio-source-chain-v1",
         "reference_commit": reference["branch_commit_observed_2026_10_26"],
+        "hotdog_zip_sha256_matches_user_observation": bool(expected_zip_sha256),
         "checks": checks,
         "checks_satisfied": sum(checks.values()),
         "checks_total": len(checks),
