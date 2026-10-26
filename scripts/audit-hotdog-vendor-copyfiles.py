@@ -146,6 +146,41 @@ def inspect(archive):
             else:
                 external.append(src)
 
+    # Static filename alignment only: AB OTA partition tokens are *not*
+    # authorization to flash radio images or proof of installed firmware.
+    ota_partitions = []
+    ota_unparsed = []
+    for line_number, line in logical_lines(board_text):
+        if not line or line.lstrip().startswith("#"):
+            continue
+        match = re.match(r"^AB_OTA_PARTITIONS\\s*(?:\\+=|:=|=)\\s*(.*)$", line)
+        if not match:
+            if "AB_OTA_PARTITIONS" in line:
+                ota_unparsed.append(f"line {line_number}: {line[:120]}")
+            continue
+        for token in match.group(1).split():
+            if re.fullmatch(r"[A-Za-z0-9_]+", token):
+                ota_partitions.append(token)
+            else:
+                ota_unparsed.append(f"line {line_number}: {token[:120]}")
+    ota_dupes = sorted(p for p, n in Counter(ota_partitions).items() if n > 1)
+    radio_images = sorted(
+        name[len("radio/"):-len(".img")]
+        for name in files
+        if name.startswith("radio/") and name.endswith(".img")
+        and "/" not in name[len("radio/"):]
+    )
+    ota_set = set(ota_partitions)
+    radio_set = set(radio_images)
+    package_so_candidates = {}
+    for package in sorted(set(packages)):
+        package_so_candidates[package] = sorted(
+            name for name in files if name.startswith("proprietary/")
+            and name.endswith(".so")
+            and (Path(name).name[:-3] == package or
+                 Path(name).name[:-3] + "_odm" == package)
+        )[:5]
+
     duplicates = [d for d, sources in destinations.items() if len(sources) > 1]
     payloads = [f for f in files if f.startswith(("proprietary/", "radio/"))]
     unreferenced = [f for f in payloads if f not in referenced_files]
@@ -169,6 +204,24 @@ def inspect(archive):
         "copy_source_category_counts": dict(sorted(category.items())),
         "package_token_count": len(packages),
         "package_token_samples": first(packages),
+        "package_library_basename_candidates": package_so_candidates,
+        "package_with_heuristic_library_candidate_count":
+            sum(bool(v) for v in package_so_candidates.values()),
+        "package_without_heuristic_library_candidate_count":
+            sum(not v for v in package_so_candidates.values()),
+        "ab_ota_partition_count": len(ota_partitions),
+        "ab_ota_partition_samples": first(ota_partitions),
+        "ab_ota_duplicate_partition_count": len(ota_dupes),
+        "ab_ota_duplicate_partition_samples": first(ota_dupes),
+        "ab_ota_unparsed_rule_count": len(ota_unparsed),
+        "ab_ota_unparsed_rule_samples": first(ota_unparsed),
+        "radio_image_count": len(radio_images),
+        "ab_ota_partitions_without_radio_image": sorted(ota_set - radio_set),
+        "radio_images_without_ab_ota_partition": sorted(radio_set - ota_set),
+        "radio_partition_filename_alignment":
+            "STATIC_NAMES_MATCH" if ota_partitions and not ota_dupes
+            and not ota_unparsed and ota_set == radio_set
+            else "RADIO_NAMES_UNVERIFIED_OR_DIFFERENT",
         "zip_proprietary_and_radio_files": len(payloads),
         "zip_proprietary_and_radio_files_not_in_literal_copy_rules": len(unreferenced),
         "unreferenced_zip_file_samples": first(unreferenced),
@@ -179,7 +232,7 @@ def inspect(archive):
         "vendor_files_extracted": False,
         "installed_rom_compatibility_verified": False,
         "flash_ready": False,
-        "limitations": "Static Make syntax only; no Make variable resolution, unpacking, decompressed blob integrity, device, AVB or signing validation",
+        "limitations": "Only static filename and optional library-basename heuristics; no Android.bp/Android.mk evaluation, Make variable resolution, archive member content authentication, device, AVB, module signing or bootability validation",
     }
 
 
