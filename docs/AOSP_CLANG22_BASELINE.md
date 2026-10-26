@@ -82,3 +82,34 @@ device trusts any newly signed module, nor AVB, DTB/DTBO compatibility,
 active-slot identity or bootability. The workflow deliberately does
 not pack a boot image, flash the device, bypass module signature
 enforcement or set `flash_ready=true`.
+
+## Completed first Clang-22 CI baseline (2026-10-26)
+
+Run [40305770114](https://github.com/mason82-dotcom/OP7T-Kernel/actions/runs/40305770114)
+on revision `e75e73fe9a59099f54ccbe0812a380a09e0096b0` completed **successfully**.
+The pinned AOSP prebuilt printed compiler ID `15071444`,
+`clang version 22.0.2`, LLD `22.0.2` and LLVM revision
+`de03d430485c884861198b25459851f429cbdbad`. The test job passed
+100 Python tests. The kernel release is
+`4.14.357-perf-g57037290bb57`.
+
+**Observed from the CI log:**
+- New `Image` size: **48,713,752 bytes** — exactly the same size as the
+  kernel extracted from the reference OTA.
+- New `Image` SHA-256:
+  `808acbfaa5a110466c9a020735b1664a3e1a71ac1fd56835b519a9d7e3e3e3b1`.
+- Reference OTA `Image` SHA-256:
+  `d0e941cde7e7cd0b0e13838dc30506c448450e8e1238c40a1da2cc9b8b7b3571`.
+- The previous Clang-14 2,040-byte size mismatch is eliminated.
+  **Byte-for-byte identity is still false.**
+- The CI verified its own artifact `SHA256SUMS`. Independent Pi-side
+  comparison against original modules and original `Image` is pending.
+
+Artifacts uploaded:
+- `hotdog-aosp22-report-40305770114`
+- `hotdog-aosp22-unverified-baseline-e75e73fe9a59099f54ccbe0812a380a09e0096b0`
+
+**No release gate has changed.** The original device's installed
+partition provenance, signing-key trust, DTBO/AVB dependencies, and
+bootability are still unknown. `flash_ready=false`; never flash this
+raw `Image` or mix its new-build modules with the installed ROM.
