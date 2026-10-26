@@ -623,6 +623,66 @@ and symbolic call-target attribution.
 **`flash_ready=false`**. No OTA partition, module, ELF or kernel
 has been patched.
 
+### Pi result: llvm-objdump missing; fallback now checks versioned LLVM and GNU ARM tools
+
+The user's first `audit-hotdog-a2dp-llvm-objdump.py` run
+returned `LLVM_OBJDUMP_NOT_INSTALLED`; both original SHA-256 checks
+passed and the ELF was not executed or extracted. **This was an
+analysis-tool availability issue**, not an ELF failure or negative
+disassembly result.
+
+The audit script now discovers existing binaries in order:
+`llvm-objdump`, `llvm-objdump-22` through
+`llvm-objdump-16` (including Debian 13's usual
+`llvm-objdump-19`), then native ARM cross tools such as
+`arm-linux-gnueabi-objdump`,
+`arm-linux-gnueabihf-objdump` and
+`arm-none-eabi-objdump`. It **does not install packages**.
+
+LLVM receives ELF bytes on standard input using `-`, supported by
+the official LLVM object-dumper interface. ARM GNU objdump expects a
+filename; on Linux the script therefore creates an anonymous
+`memfd` (RAM-backed descriptor) and passes it via
+`/proc/self/fd/<fd>` to the child process. It does not create a
+named or persistent extracted ELF on the filesystem. Tool binary
+execution is limited to the disassembler, **not** the untrusted ELF.
+
+Use the existing tool and original local ZIP:
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/\${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+
+  git fetch origin "+refs/heads/\${BRANCH}:\${REF}"
+  git show "\${REF}:scripts/audit-hotdog-a2dp-llvm-objdump.py" \
+    > "$DIR/audit-llvm-text.py.partial"
+  mv "$DIR/audit-llvm-text.py.partial" "$DIR/audit-llvm-text.py"
+
+  python3 "$DIR/audit-llvm-text.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    | tee "$DIR/a2dp-disassembly-audit.json"
+)
+```
+
+Check `selected_tool_name`, `selected_tool_flavor` and
+`disassembly.status`. If no listed tools exist, the status is
+`NO_ARM_DISASSEMBLER_AVAILABLE`. **Do not treat missing tools
+or zero textual references as evidence of no A2DP code path.**
+
+To investigate available **Debian** packages without changing the Pi:
+
+```bash
+apt-cache policy llvm-19 binutils-arm-linux-gnueabi
+```
+
+No `sudo`, `apt install`, changes to repositories, code modifications,
+OTA partition writes or kernel rebuilds are part of the audit.
+`flash_ready=false`.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
