@@ -153,7 +153,7 @@ def inspect(archive):
     for line_number, line in logical_lines(board_text):
         if not line or line.lstrip().startswith("#"):
             continue
-        match = re.match(r"^AB_OTA_PARTITIONS\\s*(?:\\+=|:=|=)\\s*(.*)$", line)
+        match = re.match(r"^AB_OTA_PARTITIONS\s*(?:\+=|:=|=)\s*(.*)$", line)
         if not match:
             if "AB_OTA_PARTITIONS" in line:
                 ota_unparsed.append(f"line {line_number}: {line[:120]}")
