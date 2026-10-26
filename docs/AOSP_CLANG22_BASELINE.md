@@ -8,8 +8,9 @@ It builds the untouched crDroid 13 / Android 17 kernel (no NetHunter or
 KernelSU patch) at `57037290bb57caefd3c337db3511fca5751fb4ef`.
 
 Workflow: `.github/workflows/hotdog-aosp-clang22-baseline.yml`.
-It runs on pushes to `experiment/hotdog-aosp-clang-r596125` and by
-manual dispatch on that branch. It is separate from the Clang-14
+It runs **only by manual dispatch** on
+`experiment/hotdog-aosp-clang-r596125`; documentation commits do not
+start a new costly kernel build. It is separate from the Clang-14
 `nethunter-kernel.yml` workflow.
 
 ## Reproducible compiler input
@@ -113,3 +114,41 @@ Artifacts uploaded:
 partition provenance, signing-key trust, DTBO/AVB dependencies, and
 bootability are still unknown. `flash_ready=false`; never flash this
 raw `Image` or mix its new-build modules with the installed ROM.
+
+## Completed Raspberry Pi reference comparison (2026-10-26)
+
+The user downloaded the complete artifact from run `40305770114` into
+`.work/baseline-aosp22-40305770114` and checked its `SHA256SUMS`.
+Its `upstream-commit.txt` and `kernel.release` report the pinned
+source and release.
+
+**Original OTA `boot.img` kernel versus the Clang-22 artifact:**
+
+| Verification | Result |
+| --- | --- |
+| Reference OTA Image size | 48,713,752 bytes |
+| Clang-22 Image size | 48,713,752 bytes, exact size match |
+| Reference OTA Image SHA-256 | `d0e941cde7e7cd0b0e13838dc30506c448450e8e1238c40a1da2cc9b8b7b3571` |
+| Clang-22 Image SHA-256 | `808acbfaa5a110466c9a020735b1664a3e1a71ac1fd56835b519a9d7e3e3e3b1` |
+| First different Image byte | 2076 (decimal, `0x81c`), after ARM64 header |
+| Embedded reference vs Clang-22 kernel CONFIG entries | 5007/5007 identical |
+| Reference WLAN `qca_cld3_wlan.ko` vs rebuilt `wlan.ko` imported symbol CRCs | 394/394 match, zero missing, zero blockers |
+| Reference `gspca_main.ko` vs rebuilt `gspca_main.ko` imported symbol CRCs | 65/65 match, zero missing, zero blockers |
+| `scripts/audit-module-abi.py --fail-on-unknown` | Exit 0 for both module comparisons |
+| Final verdict | `abi_and_trust_not_proven`; `flash_ready=false` |
+
+This closes the earlier **pending Pi-side module comparison**, but not the
+signing, AVB/DTBO, active installed-slot evidence, firmware dependency,
+unversioned export, or actual bootability gates. The raw `Image` is
+not a signed / verified `boot.img`. Identical image **size** and imported
+symbol-version CRCs must not be represented as binary identity or safe
+kernel replacement.
+
+### Next evidence isolation
+
+Inspect the unchanged official and rebuilt `Image` binaries to
+characterize differing-byte counts, ranges, `linux_banner` metadata,
+embedded build identity, and module signer metadata. Avoid attributing all
+remaining differences to the build timestamp before examining actual code
+and other build-dependent data. Do not modify the source configuration or
+the reference partition images in pursuit of hash equality.
