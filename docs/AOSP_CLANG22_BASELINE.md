@@ -420,3 +420,45 @@ Next probe exact continuous equal-run lengths at fixed shifts 0,
 Separate low-entropy padding from information-rich matching data.
 Do not rebuild, flash, or loosen module-signature enforcement.
 `flash_ready=false`.
+
+## Fixed-shift full-run matching in rebuilt .rodata coordinates (Raspberry Pi, 2026-10-26)
+
+The user compared every byte of the reference OTA Image and pinned AOSP
+Clang-22 `Image` within the rebuilt `.rodata` coordinate interval
+[26,738,688, 38,883,328), testing fixed shifts 0, −11,776,
+−57,216 and −57,344. Both stored Image files have 48,713,752 bytes.
+
+| Tested shift | Positions with equal byte values | Contiguous matches >= 4096 bytes | Total bytes in those contiguous runs |
+| --- | ---: | ---: | ---: |
+| 0 | 2,420,286 | 8 | 196,983 |
+| −11,776 | 2,739,158 | 12 | 709,336 |
+| −57,216 | 3,987,506 | 3 | 3,706,348 |
+| −57,344 | 2,789,754 | 28 | 600,356 |
+
+The **longest single exact match** at shift −57,216 is **3,695,607
+bytes**: original bytes from **35,187,721** through **38,883,327**
+inclusive equal rebuilt bytes at original offset −57,216. This segment
+terminates **exactly at the artificial rebuilt-rodata audit upper
+boundary**, so the match may continue into later Image sections. The
+true maximal length has not yet been measured.
+
+Other useful unique, non-padding-looking evidence includes two
+contiguous matches at shift −11,776:
+- 239,980 bytes starting at original offset 30,054,116 (sample 245
+  distinct byte values).
+- 133,299 bytes starting at original offset 30,473,847 (sample 252
+  distinct byte values).
+
+Low-entropy padding caveat: several other long matches have an
+examined 4096-byte prefix containing **one** unique byte value. Also,
+equal-byte counts from independently tested shifts cannot be summed
+or interpreted as independently matched payload coverage; coincidental
+zero/FF matches inflate those counts.
+
+Next run a *bounded local left/right extension* at the above
+selected matches, crossing the artificial rodata end where needed;
+compute whole-run hashes and data density (e.g. nonzero count,
+number of distinct byte values, compressibility), not solely the
+first 4096-byte sample. Do not infer proven identity of the original
+kernel instructions, bootability, or installed module-signature trust
+from these tests. `flash_ready=false`.
