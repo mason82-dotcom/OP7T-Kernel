@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Read-only LLVM ARM32 disassembly hints for embedded audio A2DP path.
+"""Read-only LLVM or ARM GNU objdump text hints for the A2DP ELF string.
 
-This tool verifies original ZIP and ELF SHA-256, reads only the hotdog Audio
-HAL into memory, and pipes the bytes to installed llvm-objdump via stdin.
-No file extraction, ELF execution, firmware change, or trusted code-reference
-claim. Disassembly is evidence for expert review, not proof of runtime flow.
+Verifies both pinned SHA256s; passes ELF via stdin or Linux anonymous memfd.
+Never writes to disk, executes the ELF or attests a runtime call chain.
 """
 import argparse
 from collections import deque
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -31,6 +30,18 @@ MAX_LINE = 350
 ADDR = re.compile(r"^\s*([0-9a-fA-F]{4,8}):\s+")
 A2DP_ADDR = re.compile(r"(?i)(?:0x)?0*1654f\b")
 DLOPEN = re.compile(r"\b(?:dlopen|dlsym)(?:@plt|@.*)?\b", re.I)
+
+
+# Search installed (possibly version-suffixed) executables before suggesting apt.
+LLVM_CANDIDATES = (
+    "llvm-objdump", "llvm-objdump-22", "llvm-objdump-21",
+    "llvm-objdump-20", "llvm-objdump-19", "llvm-objdump-18",
+    "llvm-objdump-17", "llvm-objdump-16",
+)
+GNU_CANDIDATES = (
+    "arm-linux-gnueabi-objdump", "arm-linux-gnueabihf-objdump",
+    "arm-none-eabi-objdump",
+)
 
 
 class ObjdumpProbeError(ValueError):
@@ -164,21 +175,96 @@ def run_objdump(elf, binary):
     }
 
 
-def inspect(path, llvm_objdump_path=None):
-    elf = verified_audio(path)
-    if llvm_objdump_path:
-        binary = Path(llvm_objdump_path)
-        if not binary.is_file():
-            raise ObjdumpProbeError("Specified llvm-objdump does not exist")
-        exe = str(binary.resolve())
-    else:
-        exe = shutil.which("llvm-objdump")
-    disassembly = run_objdump(elf, exe)
+
+def discover_disassembler(llvm_override=None, gnu_override=None):
+    """Return flavor/path/executable name; do not install packages."""
+    if llvm_override and gnu_override:
+        raise ObjdumpProbeError("Choose only one explicit objdump override")
+    for flavor, value in (("llvm", llvm_override), ("gnu-arm", gnu_override)):
+        if value:
+            executable = Path(value)
+            if not executable.is_file():
+                raise ObjdumpProbeError("Selected objdump executable does not exist")
+            return flavor, str(executable.resolve()), executable.name
+    for name in LLVM_CANDIDATES:
+        found = shutil.which(name)
+        if found:
+            return "llvm", found, name
+    for name in GNU_CANDIDATES:
+        found = shutil.which(name)
+        if found:
+            return "gnu-arm", found, name
+    return None, None, None
+
+
+def run_gnu_objdump(elf, binary):
+    """GNU objdump receives an anonymous RAM fd, never an extracted disk file."""
+    if not hasattr(os, "memfd_create") or not Path("/proc/self/fd").is_dir():
+        return {
+            "status": "GNU_OBJDUMP_REQUIRES_LINUX_MEMFD",
+            "tool_available": True,
+            "note": "Memory-only file descriptors unavailable; no data exported.",
+        }
+    fd = os.memfd_create("op7t-hotdog-audio-metadata", flags=0)
+    try:
+        written = 0
+        while written < len(elf):
+            amount = os.write(fd, elf[written:])
+            if amount <= 0:
+                raise ObjdumpProbeError("Unable to write anonymous memory FD")
+            written += amount
+        os.lseek(fd, 0, os.SEEK_SET)
+        cmd = [binary, "--disassemble", "--no-show-raw-insn",
+               "/proc/self/fd/" + str(fd)]
+        try:
+            out = subprocess.run(cmd, capture_output=True, pass_fds=(fd,),
+                                 timeout=45, check=False)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ObjdumpProbeError("ARM GNU objdump failed to finish") from exc
+    finally:
+        os.close(fd)
+    if len(out.stdout) > MAX_DISASM_OUTPUT or len(out.stderr) > 8192:
+        raise ObjdumpProbeError("GNU objdump output exceeded safe limits")
+    if out.returncode:
+        return {
+            "status": "GNU_OBJDUMP_CANNOT_DISASSEMBLE_INPUT",
+            "tool_available": True,
+            "return_code": out.returncode,
+            "diagnostic": out.stderr.decode("utf-8", "replace")[:1200],
+        }
     return {
-        "schema": "op7t-hotdog-a2dp-llvm-objdump-text-v1",
+        "status": "DISASSEMBLY_TEXT_CANDIDATES_RECORDED",
+        "tool_available": True,
+        "tool_command": ["ARM GNU objdump", "--disassemble",
+                         "--no-show-raw-insn", "<anonymous RAM fd>"],
+        **parse_disassembly(out.stdout.decode("utf-8", "replace")),
+    }
+
+
+def inspect(path, llvm_objdump_path=None, gnu_objdump_path=None):
+    elf = verified_audio(path)
+    flavor, tool_path, tool_name = discover_disassembler(
+        llvm_objdump_path, gnu_objdump_path
+    )
+    if flavor == "llvm":
+        disassembly = run_objdump(elf, tool_path)
+    elif flavor == "gnu-arm":
+        disassembly = run_gnu_objdump(elf, tool_path)
+    else:
+        disassembly = {
+            "status": "NO_ARM_DISASSEMBLER_AVAILABLE",
+            "tool_available": False,
+            "note": "No preinstalled supported disassembler detected; "
+                    "no packages installed and no files changed.",
+            "checked_binary_names": list(LLVM_CANDIDATES + GNU_CANDIDATES),
+        }
+    return {
+        "schema": "op7t-hotdog-a2dp-disassembler-text-v2",
         "input_zip_sha256_verified": True,
         "input_elf_sha256_verified": True,
         "path_string_offset_hex": "0x1654f",
+        "selected_tool_flavor": flavor,
+        "selected_tool_name": tool_name,
         "disassembly": disassembly,
         "disassembly_does_not_prove_direct_code_xref": True,
         "proves_dlopen_receives_a2dp_path": False,
@@ -186,7 +272,9 @@ def inspect(path, llvm_objdump_path=None):
         "binary_executed": False,
         "binary_extracted_to_disk": False,
         "flash_ready": False,
-        "limitations": "llvm-objdump consumes ELF via stdin, not executed. Full ARM/Thumb control-flow, PC-relative calculations, GOT and indirect loads are NOT resolved. Text hits may be false positives; zero hits do not disprove dynamic A2DP use."
+        "limitations": "LLVM reads ELF through stdin; ARM GNU through anonymous "
+                       "Linux memfd. Text hits may be false positives; zero hits "
+                       "cannot exclude ARM/Thumb PC-relative or indirect references.",
     }
 
 
@@ -194,9 +282,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("zip", type=Path)
     parser.add_argument("--llvm-objdump")
+    parser.add_argument("--gnu-objdump")
     args = parser.parse_args(argv)
     try:
-        result = inspect(args.zip, args.llvm_objdump)
+        result = inspect(args.zip, args.llvm_objdump, args.gnu_objdump)
     except (OSError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
         print(f"ELF disassembly text probe FAILED: {exc}", file=sys.stderr)
         return 2
