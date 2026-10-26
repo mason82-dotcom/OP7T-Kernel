@@ -318,6 +318,29 @@ hints. Raw string occurrences are not proof of dynamic loading.
 Common vendor binary presence and full loader resolution remain
 unverified; `flash_ready=false`.
 
+### Direct audio dependencies with source-level common modules
+
+The pinned common vendor `Android.bp` has independently been inspected
+for actual names from the observed Audio HAL's `DT_NEEDED` list:
+
+| Audio HAL `DT_NEEDED` | Pinned common module | `Android.bp` declared source |
+| --- | --- | --- |
+| `libaudioEngineerTest.so` | `libaudioEngineerTest` | `proprietary/odm/lib/libaudioEngineerTest.so` (32-bit ODM) |
+| `libaudio_log_utils.so` | `libaudio_log_utils` | `proprietary/vendor/lib/libaudio_log_utils.so` (32-bit vendor) |
+| `vendor.qti.hardware.audiohalext@1.0.so` | `vendor.qti.hardware.audiohalext@1.0` | `proprietary/vendor/lib/vendor.qti.hardware.audiohalext@1.0.so` (32-bit vendor) |
+
+This gives a **more directly justified** static dependency
+investigation than treating `liba2dpoffload_odm` as a proven direct
+audio HAL dependency: `libaudioEngineerTest.so` is observed in the
+actual ELF dynamic table and is declared by the pinned common
+vendor source. These are name/source declarations only, not proof
+that their binary blobs match this OTA, were installed on the device
+or are resolved at runtime.
+
+The earlier 15/15 source-chain result refers only to **source build
+definitions**. It does not conflict with the absence of an A2DP
+`DT_NEEDED` in the actual archived HAL.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
