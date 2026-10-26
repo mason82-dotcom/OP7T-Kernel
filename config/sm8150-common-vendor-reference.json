@@ -31,5 +31,15 @@
   "module_abi_compatible": false,
   "proprietary_binary_contents_validated": false,
   "flash_ready": false,
-  "note": "Pinned GitHub 17.0 branch tip is a verifiable source tree reference, not proof of identity with the October 21 2026 official ROM build or device partitions. Do not import proprietary blobs into this public project."
+  "note": "Pinned GitHub 17.0 branch tip is a verifiable source tree reference, not proof of identity with the October 21 2026 official ROM build or device partitions. Do not import proprietary blobs into this public project.",
+  "verified_build_file_git_blob_shas": {
+    "Android.bp": "b0405bf3d952d9e077955efb224a64262629471f",
+    "sm8150-common-vendor.mk": "f0f7837677547dfa7795a2555b0e3c02a0c0ad78",
+    "BoardConfigVendor.mk": "18ed0ae744b9de7e8c7f1b178416ab59ffa14791"
+  },
+  "verified_build_file_bytes": {
+    "Android.bp": 480900,
+    "sm8150-common-vendor.mk": 57495,
+    "BoardConfigVendor.mk": 50
+  }
 }
