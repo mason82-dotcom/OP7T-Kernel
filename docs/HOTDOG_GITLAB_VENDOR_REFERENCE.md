@@ -384,6 +384,56 @@ kernel module signer/ABI runtime compatibility. Static matches do
 not imply a bit-reproducible OTA nor release-safe kernel.
 `flash_ready=false`.
 
+### Scan the generated vendor module names (additional offline gate)
+
+The hotdog-specific ZIP's static manifest contains five
+`PRODUCT_PACKAGES` tokens whose `.so` basename candidates were all
+observed on the Raspberry Pi. To check whether their **module name
+tokens** are also present in the generated vendor `Android.bp` or
+`Android.mk`, use the read-only and bounded
+[`scripts/audit-hotdog-vendor-soong-names.py`](../scripts/audit-hotdog-vendor-soong-names.py).
+The script reads only `hotdog-vendor.mk`, `Android.bp` and
+`Android.mk` at the ZIP root, if present; it neither unpacks the ZIP
+nor evaluates Android build files.
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  git show "${REF}:scripts/audit-hotdog-vendor-soong-names.py" \
+    > "$DIR/audit-soong.py.partial"
+  mv "$DIR/audit-soong.py.partial" "$DIR/audit-soong.py"
+
+  python3 "$DIR/audit-soong.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    | tee "$DIR/soong-name-audit.json"
+)
+```
+
+The report shows `product_package_name_candidates`, the presence
+of top-level `Android.bp`/`Android.mk`, and the count of missing
+module *name tokens*. A lexical name match is **not** proof that
+the Blueprint file defines a valid module of the correct type, has
+correct `srcs` or `shared_libs`, resolves dependencies, passes
+Soong validation, or matches the binaries installed on the device.
+Missing names may indicate generated artifacts stored elsewhere;
+do not create fabricated module declarations to silence the audit.
+
+The official
+[hotdog extraction script](https://github.com/crdroidandroid/android_device_oneplus_hotdog/blob/17.0/extract-files.py)
+references the distinct `vendor/oneplus/sm8150-common`
+namespace and includes an audio ODM `DT_NEEDED` rewrite. Neither
+is validated by this lexical check.
+
+**No vendor firmware or module is authorized for flashing.**
+`flash_ready=false`.
+
 ## Subsequent compatibility analysis (not automatic)
 
 1. Obtain a verifiable **source revision** for the hotdog ZIP, and
