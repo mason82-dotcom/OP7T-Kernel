@@ -269,6 +269,55 @@ they can all be resolved at runtime. This narrow metadata read does
 **not** touch common-vendor proprietary ELF contents, install
 anything, disable verification or change the kernel. **`flash_ready=false`.**
 
+### Real hotdog audio ELF dynamic results (Raspberry Pi, 2026-10-26)
+
+The user ran `scripts/audit-hotdog-audio-elf.py` on the original
+`proprietary_vendor_oneplus_hotdog-17.0.zip`, verifying the exact
+local ZIP SHA-256
+`c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078`
+before parsing the single audio shared library in memory.
+
+- Member: `proprietary/odm/lib/hw/audio.primary.msmnile.so`.
+- Size: **810,136 bytes**; ELF SHA-256:
+  `08a20a73c123c793d717f1b8e7078df1b9efb3853753fae7fac269d3a20a829f`.
+- `ELFCLASS32`, little-endian, `EM_ARM`, `ET_DYN`; SONAME:
+  `audio.primary.msmnile.so`.
+- **24** `DT_NEEDED` entries were observed:
+  `libbase.so`, `liblog.so`, `libcutils.so`, `libtinyalsa.so`,
+  `libtinycompress.so`, `libaudioroute.so`, `libaudioutils.so`,
+  `libexpat.so`, `libhidlbase.so`, `libprocessgroup.so`,
+  `libutils.so`, `libaudio_log_utils.so`,
+  `vendor.qti.hardware.audiohalext@1.0.so`,
+  `android.hardware.sensors@1.0.so`, `libhardware.so`,
+  `libhardware_legacy.so`, `libhidltransport.so`,
+  `libhwbinder.so`, `libaudioEngineerTest.so`,
+  `android.hardware.power@1.2.so`, `libc++.so`, `libc.so`,
+  `libm.so` and `libdl.so`.
+- Neither `/vendor/lib/liba2dpoffload.so` **nor**
+  `/odm/lib/liba2dpoffload.so` occurs in the parsed `DT_NEEDED`
+  array. `old_needed_present=false`, `new_needed_present=false`,
+  `expected_dynamic_fixup_verified=false`.
+- Status: **`EXPECTED_FULLPATH_NEEDED_NOT_OBSERVED`**.
+- ELF was read directly into bounded memory from the ZIP;
+  `elf_written_to_disk=false`, `elf_executed=false`.
+
+**Technical interpretation:** The upstream `extract-files.py`
+`replace_needed(old,new)` rule is *declared*, but no direct
+`DT_NEEDED` dependency on either path is observable in this local
+archive member. The rule may be vestigial/conditional, may have
+applied to a different blob revision, or the library could be used
+indirectly. **Do not claim that the fixup is missing or broken**
+without additional provenance evidence, and **do not create or
+patch** an ELF dependency merely to match the extraction script.
+
+Next, read only this ELF's bounded ASCII string references and
+the already downloaded common-vendor Blueprint/module list to
+identify other audio dependencies (notably
+`libaudioEngineerTest.so`) and potential indirect loading
+hints. Raw string occurrences are not proof of dynamic loading.
+Common vendor binary presence and full loader resolution remain
+unverified; `flash_ready=false`.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
