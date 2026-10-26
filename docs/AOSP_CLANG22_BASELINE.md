@@ -220,3 +220,41 @@ two different generated module-signing certificates are trusted by
 the actual device. No flashing, repacking, or new build required.
 
 `flash_ready=false`.
+
+## Embedded IKCONFIG gzip analysis (Raspberry Pi, 2026-10-26)
+
+The user inspected the bounded `IKCFG_ST` ... `IKCFG_ED`
+section in the verified reference OTA kernel and the CI AOSP Clang-22
+kernel.
+
+| Property | Original reference OTA | Rebuilt AOSP Clang 22 |
+| --- | ---: | ---: |
+| IKCONFIG start | 35,122,456 | 35,065,112 |
+| IKCONFIG end (exclusive) | 35,158,937 | 35,101,676 |
+| gzip member length | 36,465 | 36,548 |
+| decompressed byte length | 163,567 | 163,567 |
+| gzip header mtime | 0 | 0 |
+| uncompressed SHA-256 | `9dcf7bdd77569401c448ac7b23425350693d217be96744cbb70da8a7dff50b86` | same |
+| compressed SHA-256 | `d1f73a41111879f15541904ca51bb049aec5eec1f17caa7f480c7cecb58eb151` | `dc334c19cf550b56fe44e9586fae5c565b387427295b1fc640ba18141e325ed1` |
+
+The CI `kernel.config` is also byte-identical to the decompressed
+embedded CI config, and the uncompressed reference OTA and CI config
+blobs are **exactly byte-identical**, not just equivalent on 5007
+configuration keys.
+
+The IKCONFIG start displacement is −57,344 bytes, while the end
+displacement is −57,261 bytes due to the rebuilt gzip stream being 83
+bytes larger. Do not attribute the 57,344-byte layout displacement to
+the 83-byte gzip size change, and do not infer code equivalence from
+identical configuration.
+
+The source at kernel commit
+`57037290bb57caefd3c337db3511fca5751fb4ef`
+generates `kernel/config_data.gz` via the Makefile gzip recipe in
+`scripts/Makefile.lib`: `gzip -n -f -9`. Both members have mtime 0.
+The next offline investigation compares member gzip headers/trailers,
+the raw DEFLATE payload and a local `gzip -n -9` recompression,
+**without** rewriting the original OTA, altering toolchains or
+changing kernel configuration.
+
+The two Images are not byte-identical. `flash_ready=false`.
