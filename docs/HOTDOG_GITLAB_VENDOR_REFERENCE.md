@@ -56,35 +56,43 @@ are separate from all kernel builds. The URL is supplied directly by
 the user; download success cannot be asserted in advance.
 
 ```bash
-cd ~/Projekte/OP7T-Kernel-KSU-Review
-git fetch origin experiment/hotdog-aosp-clang-r596125
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
 
-REF=origin/experiment/hotdog-aosp-clang-r596125
-mkdir -p .work/vendor-hotdog-17
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+  REF="refs/remotes/origin/${BRANCH}"
+  git cat-file -e "${REF}^{commit}"
 
-git show "$REF:scripts/inspect-hotdog-vendor-zip.py" \
-  > .work/vendor-hotdog-17/inspect-hotdog-vendor-zip.py
-git show "$REF:config/hotdog-vendor-reference.json" \
-  > .work/vendor-hotdog-17/hotdog-vendor-reference.json
+  DIR="$PWD/.work/vendor-hotdog-17"
+  mkdir -p "$DIR"
 
-ARCHIVE="$PWD/.work/vendor-hotdog-17/proprietary_vendor_oneplus_hotdog-17.0.zip"
-URL='https://gitlab.com/crdroidandroid/proprietary_vendor_oneplus_hotdog/-/archive/17.0/proprietary_vendor_oneplus_hotdog-17.0.zip?ref_type=heads'
+  # Write temp files first. A failing git show must never leave empty tools.
+  git show "${REF}:scripts/inspect-hotdog-vendor-zip.py" \
+    > "$DIR/inspect-hotdog-vendor-zip.py.partial"
+  mv "$DIR/inspect-hotdog-vendor-zip.py.partial" \
+     "$DIR/inspect-hotdog-vendor-zip.py"
+  git show "${REF}:config/hotdog-vendor-reference.json" \
+    > "$DIR/hotdog-vendor-reference.json.partial"
+  mv "$DIR/hotdog-vendor-reference.json.partial" \
+     "$DIR/hotdog-vendor-reference.json"
 
-if test -e "$ARCHIVE"; then
-  echo "Already exists; not downloading again: $ARCHIVE"
-else
-  curl --fail --location --retry 2 --connect-timeout 20 \
-    --output "$ARCHIVE" "$URL"
-fi
+  ARCHIVE="$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip"
+  URL='https://gitlab.com/crdroidandroid/proprietary_vendor_oneplus_hotdog/-/archive/17.0/proprietary_vendor_oneplus_hotdog-17.0.zip?ref_type=heads'
 
-if test -s "$ARCHIVE"; then
-  python3 .work/vendor-hotdog-17/inspect-hotdog-vendor-zip.py \
-    --reference .work/vendor-hotdog-17/hotdog-vendor-reference.json \
-    "$ARCHIVE" \
-    > .work/vendor-hotdog-17/inventory.json
-  echo "Inventory exit status: $?"
-  cat .work/vendor-hotdog-17/inventory.json
-fi
+  if test ! -s "$ARCHIVE"; then
+    curl --fail --location --retry 2 --connect-timeout 20 \
+      --output "$ARCHIVE.partial" "$URL"
+    mv "$ARCHIVE.partial" "$ARCHIVE"
+  else
+    echo "Reuse existing ZIP: $ARCHIVE"
+  fi
+
+  python3 "$DIR/inspect-hotdog-vendor-zip.py" \
+    --reference "$DIR/hotdog-vendor-reference.json" \
+    "$ARCHIVE" | tee "$DIR/inventory.json"
+)
 ```
 
 If a trusted SHA-256 for the **exact ZIP bytes** is known, supply
