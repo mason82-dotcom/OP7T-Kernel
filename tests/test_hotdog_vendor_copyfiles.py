@@ -99,5 +99,57 @@ class CopyfileAuditTests(unittest.TestCase):
             module.inspect(self.zip)
 
 
+    def test_radio_names_match_board_ota_partition_inventory(self):
+        self.make_zip(
+            b"PRODUCT_PACKAGES += audio.primary.msmnile_odm com.qti.sensor.imx471\n",
+            board=b"AB_OTA_PARTITIONS += \\n LOGO \\n modem\n",
+            extra={
+                ROOT_ZIP + "radio/LOGO.img": b"do not flash",
+                ROOT_ZIP + "radio/modem.img": b"do not flash",
+                ROOT_ZIP + "proprietary/odm/lib/hw/audio.primary.msmnile.so": b"fake",
+                ROOT_ZIP + "proprietary/odm/lib64/camera/com.qti.sensor.imx471.so": b"fake",
+            },
+        )
+        result = module.inspect(self.zip)
+        self.assertEqual(result["ab_ota_partition_count"], 2)
+        self.assertEqual(result["radio_image_count"], 2)
+        self.assertEqual(result["radio_partition_filename_alignment"], "STATIC_NAMES_MATCH")
+        self.assertEqual(result["ab_ota_partitions_without_radio_image"], [])
+        self.assertEqual(result["radio_images_without_ab_ota_partition"], [])
+        self.assertEqual(result["package_with_heuristic_library_candidate_count"], 2)
+        self.assertEqual(result["package_without_heuristic_library_candidate_count"], 0)
+        self.assertFalse(result["flash_ready"])
+
+    def test_radio_gap_not_considered_resolved(self):
+        self.make_zip(
+            b"PRODUCT_PACKAGES += FakeModule\n",
+            board=b"AB_OTA_PARTITIONS += modem dsp\n",
+            extra={ROOT_ZIP + "radio/modem.img": b"fake"},
+        )
+        result = module.inspect(self.zip)
+        self.assertEqual(result["ab_ota_partitions_without_radio_image"], ["dsp"])
+        self.assertEqual(result["radio_partition_filename_alignment"],
+                         "RADIO_NAMES_UNVERIFIED_OR_DIFFERENT")
+        self.assertEqual(result["package_without_heuristic_library_candidate_count"], 1)
+
+    def test_no_board_ota_evidence_is_not_vacuous_match(self):
+        self.make_zip(b"PRODUCT_PACKAGES += FakeModule\n")
+        result = module.inspect(self.zip)
+        self.assertEqual(result["ab_ota_partition_count"], 0)
+        self.assertEqual(result["radio_partition_filename_alignment"],
+                         "RADIO_NAMES_UNVERIFIED_OR_DIFFERENT")
+
+    def test_duplicate_board_ota_partition_rejected_as_match(self):
+        self.make_zip(
+            b"PRODUCT_PACKAGES += FakeModule\n",
+            board=b"AB_OTA_PARTITIONS += modem modem\n",
+            extra={ROOT_ZIP + "radio/modem.img": b"fake"},
+        )
+        result = module.inspect(self.zip)
+        self.assertEqual(result["ab_ota_duplicate_partition_count"], 1)
+        self.assertEqual(result["radio_partition_filename_alignment"],
+                         "RADIO_NAMES_UNVERIFIED_OR_DIFFERENT")
+
+
 if __name__ == "__main__":
     unittest.main()
