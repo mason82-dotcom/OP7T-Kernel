@@ -17,8 +17,9 @@ MAX_FILE_SIZE = 512 * 1024
 MAX_LINES_PER_FILE = 12000
 MAX_REPORTED_LINES = 70
 FILTER = re.compile(
-    r"(^|\W)(include|inherit-product|PRODUCT_PACKAGES|PRODUCT_COPY_FILES|"
-    r"BOARD_|TARGET_|VENDOR_|SOONG_|vendor_dlkm|\.ko\b|firmware)(\W|$)",
+    r"\\binclude\\b|inherit-product|PRODUCT_PACKAGES|PRODUCT_COPY_FILES|"
+    r"\\bBOARD_\\w*|\\bTARGET_\\w*|\\bVENDOR_\\w*|\\bSOONG_\\w*|"
+    r"vendor_dlkm|\\.ko\\b|firmware",
     re.IGNORECASE,
 )
 
