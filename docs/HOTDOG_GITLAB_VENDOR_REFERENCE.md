@@ -253,6 +253,82 @@ manifest audit*, never a kernel-ABI or bootability verdict.
 `flash_ready=false`.
 
 
+## Completed static copyfile inventory (Raspberry Pi, 2026-10-26)
+
+User's locally downloaded archive `proprietary_vendor_oneplus_hotdog-17.0.zip`
+at 114,977,497 bytes, SHA-256
+`c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078`,
+was successfully processed with `scripts/audit-hotdog-vendor-copyfiles.py`.
+
+| Static ZIP/Makefile observation | User-confirmed result |
+| --- | ---: |
+| `PRODUCT_COPY_FILES` literal entries | **759** |
+| Local-source paths found among ZIP filenames | **759** |
+| Local-source paths absent | **0** |
+| Duplicate destination texts | **0** |
+| External sources / unparsed rules | **0 / 0** |
+| Additional `PRODUCT_PACKAGES` tokens | **5** |
+| ZIP proprietary/radio payload names | **783** |
+| Payload filenames not in direct copy rules | **24** |
+| Status | `STATIC_COPY_REFERENCES_RESOLVE` |
+
+The five package names are `audio.primary.msmnile_odm`,
+`com.qti.sensor.imx471`, `com.qti.sensor.imx481`,
+`com.qti.sensor.imx586`, and `com.qti.sensor.s5k3m5`.
+The 24 unreferenced ZIP names sample includes five audio/camera
+shared libraries plus 19 `radio/*.img` images. The active
+`BoardConfigVendor.mk` contains one `AB_OTA_PARTITIONS +=`
+definition naming 19 radio-related partitions (including `LOGO`,
+`abl`, `modem`, `dsp`, `xbl` and `xbl_config`).
+
+**Evidence precision:** Zero missing *literal path names* means
+the static generated copyfile manifest is internally consistent.
+It does not guarantee decompressed file contents, correct
+`Android.bp`/`Android.mk` module definitions, product packaging,
+Radio/firmware compatibility, partition mapping, executable/runtime
+behavior, signer trust or installed ROM identity. Neither the
+`radio/*.img` payloads nor original `vendor_dlkm` modules are
+safe to flash or replace without separate release gates.
+
+### Additional filename-only parity fields
+
+The static auditor also checks the `AB_OTA_PARTITIONS` token names
+against `radio/<name>.img` ZIP entries **using exact filenames**,
+and lists possible library files whose basenames match the
+`PRODUCT_PACKAGES` entries (accepting a suffix `_odm` for candidate
+matching). These checks require no binary extraction and do not
+prove Android Make/Soong build module resolution.
+
+To rerun the expanded audit using the existing ZIP and an explicit
+remote-tracking ref:
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/${BRANCH}"
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+  git show "${REF}:scripts/audit-hotdog-vendor-copyfiles.py" \
+    > "$DIR/audit-copyfiles.py.partial"
+  mv "$DIR/audit-copyfiles.py.partial" "$DIR/audit-copyfiles.py"
+
+  python3 "$DIR/audit-copyfiles.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    | tee "$DIR/copyfiles-audit.json"
+)
+```
+
+Check `radio_partition_filename_alignment`,
+`ab_ota_partitions_without_radio_image`,
+`radio_images_without_ab_ota_partition`, and
+`package_library_basename_candidates`. These are static
+**filename alignment** checks only; the actual 19/19 and 5/5
+results must come from running the updated auditor on the
+user's ZIP, not from extrapolating its earlier partial inventory.
+`flash_ready=false`.
+
 ## Subsequent compatibility analysis (not automatic)
 
 1. Obtain a verifiable **source revision** for the hotdog ZIP, and
