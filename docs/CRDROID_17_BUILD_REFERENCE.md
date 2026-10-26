@@ -11,7 +11,8 @@ The official README's `repo init`, `repo sync`, `. build/envsetup.sh`, and `brun
 1. [crDroid Android manifest, branch 17.0](https://github.com/crdroidandroid/android/tree/17.0) — Android 17-based platform and general ROM build flow.
 2. [OnePlus SM8150 common BoardConfig, branch 17.0](https://github.com/crdroidandroid/android_device_oneplus_sm8150-common/blob/17.0/BoardConfigCommon.mk) — kernel image, defconfig overlays, boot parameters, WLAN module alias, DTB/DTBO and AVB expectations.
 3. [Official SM8150 kernel, branch 17.0](https://github.com/crdroidandroid/android_kernel_oneplus_sm8150/tree/17.0) — source tree. Our *reproducible* checkout is the exact SHA in [config/upstream.lock](../config/upstream.lock), not a moving branch HEAD.
-4. **Exact installed device + ROM evidence** — determines what can actually boot and what module signing keys or vendor ABI will be accepted. A publicly downloaded OTA ZIP is only a candidate reference until installed-ROM identity is proven.
+4. [crDroid `hotdog` GitLab proprietary vendor, branch `17.0`](HOTDOG_GITLAB_VENDOR_REFERENCE.md) — the official device tree requests `crdroidandroid/proprietary_vendor_oneplus_hotdog` from `crdroid-gitlab` into `vendor/oneplus/hotdog` for full-ROM builds. It is kept as an **optional locally inspected source reference**, not checked-in blobs or a standalone kernel build input. Exact GitLab archive contents/revision are not yet verified.
+5. **Exact installed device + ROM evidence** — determines what can actually boot and what module signing keys or vendor ABI will be accepted. A publicly downloaded OTA ZIP is only a candidate reference until installed-ROM identity is proven.
 
 Version terminology: **crDroid 13 = Android 17; upstream branch `17.0`**. It does not mean Android 13 or crDroid branch `13.0`. Limit scope to OnePlus 7T Pro `hotdog` (not `hotdogg`).
 
