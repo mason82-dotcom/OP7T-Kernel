@@ -68,7 +68,7 @@ jobs:
           "$BIN/ld.lld" --version | tee .work/ci/lld-version.txt
           grep -Fq 'clang version 22.0.2' .work/ci/clang-version.txt
           grep -Fq 'based on r596125' .work/ci/clang-version.txt
-          grep -Eq 'LLD 22\\.0\\.2' .work/ci/lld-version.txt
+          grep -Fq 'LLD 22.0.2' .work/ci/lld-version.txt
           echo "AOSP_CLANG_BIN=$BIN" >> "$GITHUB_ENV"
           df -h .
 
