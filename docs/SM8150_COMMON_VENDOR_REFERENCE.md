@@ -554,6 +554,75 @@ pointer candidates cannot exclude PC-relative ARM/Thumb address
 construction or indirect references. No binary data are written
 or executed. Do not flash or patch the HAL; **`flash_ready=false`**.
 
+### Real ZIP relocation result: no simple A2DP pointer candidates
+
+The user ran `scripts/audit-hotdog-a2dp-relocations.py` against the
+same verified hotdog ZIP / original ELF. Confirmed:
+
+| ELF relocation/word observation | Result |
+| --- | --- |
+| `elf_file_path_offset` | **91,471**, `0x1654f` |
+| `elf_path_virtual_address` | **91,471**, `0x1654f` |
+| ELF section | `.rodata` |
+| Relocation section observed | `.rel.plt` |
+| Relocation entries examined | **944** |
+| Entries with addend exactly equal to the path VA | **0** |
+| Aligned raw 32-bit words equal to path VA | **0** |
+| Status | **`NO_SIMPLE_A2DP_POINTER_CANDIDATES`** |
+| ELF executed or extracted | **false** |
+
+This is a **negative result for two narrow pointer representations
+only**. `.rel.plt` typically relates to dynamic binding stubs,
+and it is not a complete catalog of program-data address references.
+ARM/Thumb PC-relative address construction, arithmetic, register
+bases, GOT indirections, and branch-dependent code may still reference
+the string. No claims about lack of runtime loading are justified.
+
+### Optional in-memory ARM disassembly text hints
+
+[`scripts/audit-hotdog-a2dp-llvm-objdump.py`](../scripts/audit-hotdog-a2dp-llvm-objdump.py)
+checks both original SHA-256s, feeds only the bounded Audio HAL ELF
+bytes into `llvm-objdump` **via standard input**, and extracts only
+a limited number of lines mentioning the *exact string virtual
+address* `0x1654f` or loader symbols `dlopen` / `dlsym`.
+No binary is written to disk or executed as a program. The
+disassembly tool itself runs locally to inspect the data.
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  git show "${REF}:scripts/audit-hotdog-a2dp-llvm-objdump.py" \
+    > "$DIR/audit-llvm-text.py.partial"
+  mv "$DIR/audit-llvm-text.py.partial" "$DIR/audit-llvm-text.py"
+
+  command -v llvm-objdump || true
+
+  python3 "$DIR/audit-llvm-text.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    | tee "$DIR/a2dp-llvm-text-audit.json"
+)
+```
+
+If `llvm-objdump` is unavailable, the script returns
+`LLVM_OBJDUMP_NOT_INSTALLED`, without changing the system or
+installing packages. Do not confuse it with a run-time loader failure.
+
+Even if a disassembly line mentions `0x1654f`, this parser treats
+the line as **a candidate for review**, not an instruction-level
+def-use chain; and an absent text hit cannot rule out PIC/GOT or
+multi-instruction ARM/Thumb address formation. A correct `dlopen`
+call-argument proof needs verified basic blocks, register dataflow
+and symbolic call-target attribution.
+
+**`flash_ready=false`**. No OTA partition, module, ELF or kernel
+has been patched.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
