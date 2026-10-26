@@ -111,6 +111,77 @@ This does not read the phone and does not download the common
 vendor's `proprietary/` contents. Do not recursively clone the
 vendor repository just to verify three text files.
 
+## Raspberry Pi: successful pinned text download (2026-10-26)
+
+The user successfully downloaded all three common-vendor **build
+text files** using the pinned GitHub commit SHA and verified their
+exact Git blob hashes against
+[`config/sm8150-common-vendor-reference.json`](../config/sm8150-common-vendor-reference.json):
+
+- `Android.bp`: `b0405bf3d952d9e077955efb224a64262629471f`
+- `sm8150-common-vendor.mk`: `f0f7837677547dfa7795a2555b0e3c02a0c0ad78`
+- `BoardConfigVendor.mk`: `18ed0ae744b9de7e8c7f1b178416ab59ffa14791`
+
+Pi output was **`COMMON_VENDOR_TEXT_PIN_OK`**, followed by source
+observations `Android.bp:16175` and
+`sm8150-common-vendor.mk:769` for
+`liba2dpoffload_odm`. No common-vendor proprietary
+`proprietary/` files were downloaded in this operation.
+
+### Read-only hotdog/common ODM audio cross-tree check
+
+The next, standalone
+[`scripts/audit-hotdog-common-audio.py`](../scripts/audit-hotdog-common-audio.py)
+audit connects the archived **hotdog** audio `cc_prebuilt_library_shared`
+module metadata with the **common** `liba2dpoffload_odm`
+module and `PRODUCT_PACKAGES` entry. It rejects common build
+text files that do not match their pinned Git hashes and optionally
+compares the hotdog ZIP against the user-observed SHA-256. It checks
+filenames and expected lexical properties only, never reads or
+executes proprietary ELF bytes.
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/${BRANCH}"
+  HOTDOG="$PWD/.work/vendor-hotdog-17"
+  COMMON="$PWD/.work/vendor-sm8150-common-17"
+
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+
+  git show "${REF}:scripts/audit-hotdog-common-audio.py" \
+    > "$COMMON/audit-audio.py.partial"
+  mv "$COMMON/audit-audio.py.partial" "$COMMON/audit-audio.py"
+
+  git show "${REF}:config/sm8150-common-vendor-reference.json" \
+    > "$COMMON/source-reference.json.partial"
+  mv "$COMMON/source-reference.json.partial" "$COMMON/source-reference.json"
+
+  python3 "$COMMON/audit-audio.py" \
+    --hotdog-zip "$HOTDOG/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    --common-dir "$COMMON" \
+    --reference "$COMMON/source-reference.json" \
+    --expect-hotdog-sha256 c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078 \
+    | tee "$COMMON/audio-cross-tree-audit.json"
+)
+```
+
+The audit reports `checks` and
+`STATIC_AUDIO_SOURCE_CHAIN_ALIGNS` only if the pinned text inputs,
+hotdog ZIP hash, module names, expected 32-bit/audio install
+properties, module package references and literal hotdog ZIP source
+filename all meet the exact assertions.
+
+**Interpretation constraint:** The common vendor module's `srcs`
+is checked as a literal source *declaration*, not as a downloaded
+common-vendor ELF file. The new `liba2dpoffload` binary is not
+present in this text-only workspace, so its actual content, fixup
+and `DT_NEEDED` linkage remain explicitly unverified. The
+standalone kernel build is unchanged. `flash_ready=false`.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
