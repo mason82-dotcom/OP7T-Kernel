@@ -807,6 +807,62 @@ PLT mapping is claimed in advance.
 **`flash_ready=false`**. No proprietary ELF, firmware or
 kernel image was modified.
 
+### Confirmed 944-entry PLT metadata and ARM32 code-decoder gate
+
+The user reran the pinned import-relocation audit on the original
+Hotdog Audio HAL. Real local output:
+
+| ELF32 section / linker data | Verified |
+| --- | --- |
+| `.plt` link-time address | **`0xafa10`** |
+| `.plt` file offset | **`0xaea10`** |
+| `.plt` length | **15,136 bytes** |
+| `.plt` executable flag | `true` |
+| `.rel.plt` entries | **944** |
+| `dlopen` dynamic symbol / ordinal | **89 / 391** |
+| `dlopen` `R_ARM_JUMP_SLOT` | **`0xb5fbc`** |
+| `dlsym` dynamic symbol / ordinal | **90 / 392** |
+| `dlsym` `R_ARM_JUMP_SLOT` | **`0xb5fc0`** |
+| ELF and archive SHA256 | Both verified |
+| `flash_ready` | **false** |
+
+The exact equality **`15136 = 32 + 944 × 16`** suggests
+a conventional 32-byte `PLT0` header followed by 944
+16-byte ARM PLT entries. Using *only this unproven layout
+assumption*, the candidate ARM branch stub addresses are:
+
+- `dlopen`: **`0xb12a0`** (`0xafa10 + 32 + 391 × 16`).
+- `dlsym`: **`0xb12b0`** (`0xafa10 + 32 + 392 × 16`).
+
+These are **candidate stub addresses** until their **actual ARM
+instructions** are validated. The Arm ELF specification includes
+several valid PLT sequences and does not imply every linker emits
+the same stub layout.
+
+The updated
+[`scripts/audit-hotdog-audio-import-relocations.py`](../scripts/audit-hotdog-audio-import-relocations.py)
+now handles this cautiously. Only when the 32+16 layout holds
+does it read 3 A32 instructions from each candidate stub, check
+for `ADD ip, pc, #imm`, `ADD ip, ip, #imm`, and
+`LDR pc, [ip, #imm]` (pre-indexed) and **calculate** the
+GOT slot address. It emits
+`verified_arm_plt_candidates.<name>.computed_got_matches_relocation_slot`
+only when the calculated address **exactly** matches the
+original `R_ARM_JUMP_SLOT` target for that symbol.
+Unexpected instruction patterns are **reported unverified**,
+not incorrectly accepted. Positive and negative synthetic
+ARM32 decoder tests passed in CI.
+
+Use the exact same read-only Pi command shown in the preceding
+section, which fetches the updated
+`audit-hotdog-audio-import-relocations.py` from this branch.
+Look at `plt_32_plus_16_per_relplt_entry_layout_observed` and
+`verified_arm_plt_candidates`.
+
+Even confirmed PLT-to-GOT matches do **not** identify any code
+call site or tie `dlopen` to the A2DP path `0x1654f`.
+Kernel/ROM ABI and flashability remain unverified.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
