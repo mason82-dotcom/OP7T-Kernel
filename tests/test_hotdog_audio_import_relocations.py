@@ -86,6 +86,50 @@ class AudioImportRelocationTests(unittest.TestCase):
         self.assertTrue(report["plt_section_headers"][0]["executable_flag"])
         self.assertFalse(report["proves_plt_stub_address"])
 
+    def test_decode_arm32_plt_add_add_ldr_matches_got(self):
+        blob = bytearray(0x400)
+        # 32-byte PLT header + 16-byte entry. Add ip, pc, #0x80;
+        # add ip, ip, #0x20; ldr pc, [ip, #4]!.
+        import struct
+        struct.pack_into("<III", blob, 0x220,
+                         0xe28fc080, 0xe28cc020, 0xe5bcf004)
+        header = {"address": 0x1000, "offset": 0x200, "size": 48}
+        expected_got = 0x1020 + 8 + 0x80 + 0x20 + 4
+        result = mod.inspect_arm_plt_entry(blob, header, 0, expected_got)
+        self.assertTrue(result["arm32_three_instruction_pattern"])
+        self.assertTrue(result["computed_got_matches_relocation_slot"])
+        self.assertEqual(result["computed_got_slot_hex"], hex(expected_got))
+        self.assertEqual(result["candidate_entry_vaddr_hex"], "0x1020")
+        self.assertFalse(result["call_site_verified"])
+        self.assertFalse(result["a2dp_argument_verified"])
+
+    def test_plts_with_wrong_got_are_not_verified(self):
+        blob = bytearray(0x400)
+        struct.pack_into("<III", blob, 0x220,
+                         0xe28fc080, 0xe28cc020, 0xe5bcf004)
+        header = {"address": 0x1000, "offset": 0x200, "size": 48}
+        report = mod.inspect_arm_plt_entry(blob, header, 0, 0xdeadbeef)
+        self.assertTrue(report["arm32_three_instruction_pattern"])
+        self.assertFalse(report["computed_got_matches_relocation_slot"])
+
+    def test_unknown_arm32_stub_does_not_fake_proof(self):
+        blob = bytearray(0x400)
+        header = {"address": 0x1000, "offset": 0x200, "size": 48}
+        result = mod.inspect_arm_plt_entry(blob, header, 0, 0x1020)
+        self.assertFalse(result["arm32_three_instruction_pattern"])
+        self.assertFalse(result["computed_got_matches_relocation_slot"])
+
+    def test_out_of_range_candidate_is_not_decoded(self):
+        blob = bytearray(0x400)
+        header = {"address": 0x1000, "offset": 0x200, "size": 48}
+        result = mod.inspect_arm_plt_entry(blob, header, 1, 0x1030)
+        self.assertFalse(result["candidate_bounded_by_plt"])
+        self.assertIsNone(result["computed_got_slot_hex"])
+
+    def test_arm32_rotated_immediate_decodes_precisely(self):
+        self.assertEqual(mod._arm_rotate_immediate(0x100), 0)
+        self.assertEqual(mod._arm_rotate_immediate(0x1ff), 0xc000003f)
+
     def test_symbol_import_does_not_imply_plt_relocation(self):
         r = mod.inspect_elf(make_elf(include_dlopen=False))
         self.assertEqual(r["loader_imports"]["dlopen"]["undefined_dynsym_count"], 1)
