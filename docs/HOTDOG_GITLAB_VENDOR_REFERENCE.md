@@ -154,6 +154,44 @@ identify included Android makefiles, package lists, copy rules and
 dependencies; do not extract or execute the vendor tree.
 **`flash_ready=false`.**
 
+
+### Targeted vendor Makefile analysis (no unpacking)
+
+After completing the ZIP directory inventory, fetch the **read-only,
+bounded Makefile** inspector into the ignored local workspace and
+inspect only the two build-definition text members:
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/$BRANCH"
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+  mkdir -p "$DIR"
+  git show "${REF}:scripts/inspect-hotdog-vendor-makefiles.py" \
+    > "$DIR/inspect-makefiles.py.partial"
+  mv "$DIR/inspect-makefiles.py.partial" "$DIR/inspect-makefiles.py"
+
+  python3 "$DIR/inspect-makefiles.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    | tee "$DIR/makefiles-audit.json"
+)
+```
+
+The audit validates the ZIP wrapper and paths, checks that
+`BoardConfigVendor.mk` and `hotdog-vendor.mk` each exist exactly
+once, reads no more than **512 KiB** from either, rejects binary data
+and symlink entries, and reports at most **70 selected directive
+lines per file**. The complete vendor tree is **never extracted,
+interpreted as executable code, built or published**. The resulting
+log represents selected *textual* Makefile observations, not
+expanded Android Make dependencies and not a full firmware
+compatibility analysis. Missing `.ko` in this archive does not
+exclude modules in the distinct common vendor tree or in OTA
+`vendor_dlkm`.
+
 ## Subsequent compatibility analysis (not automatic)
 
 1. Obtain a verifiable **source revision** for the hotdog ZIP, and
