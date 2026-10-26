@@ -326,3 +326,36 @@ The next offline diagnostic should compute per-section differing-byte
 counts and check relocated, high-entropy read-only anchors within
 those mapped, bounded file regions; no further kernel compile is
 required to gather this evidence. `flash_ready=false`.
+
+## Byte differences by Clang-22 symbol sections (Raspberry Pi, 2026-10-26)
+
+User's read-only `mmap` comparison of the extracted original OTA Image
+and AOSP-Clang-22 rebuilt Image covered the entire **48,713,752-byte**
+stored Image. Segment limits were inferred from the **rebuilt**
+`System.map` relative to `_text`, clipped to file length:
+
+| Rebuilt map region | Byte range in stored Image | Size | Byte differences | Fraction different within region |
+| --- | --- | ---: | ---: | ---: |
+| header and `.text` | 0–26,738,688 | 26,738,688 | 691,794 | 2.59% |
+| `.rodata` | 26,738,688–38,883,328 | 12,144,640 | **9,724,354** | **80.07%** |
+| intermediate | 38,883,328–39,321,600 | 438,272 | 55,626 | 12.69% |
+| `.init` | 39,321,600–45,613,056 | 6,291,456 | 508,588 | 8.08% |
+| `.data` (stored part) | 45,613,056–48,713,752 | 3,100,696 | 36,190 | 1.17% |
+| **total** | 0–48,713,752 | **48,713,752** | **11,016,552** | **22.6149%** |
+
+About **88.27%** of all positional byte mismatches lie in the
+rebuilt layout's read-only data region; about **6.28%** are in the
+header-plus-code region. The distribution, together with independent
+128-byte relocated anchors and the relocated `IKCFG_ST` section,
+makes differences in read-only constants and layout an important
+source of positional mismatch.
+
+**Do not infer 88% of the physical changes are harmless data, or that
+97.41% of machine instructions match.** This is a simple positional
+byte comparison classified using the *rebuilt* map, and the original
+kernel's section boundaries may differ. Relocated but byte-identical
+content counts as changed, while changed code bytes need independent
+investigation. The map's BSS/virtual boundaries are not raw Image
+extent. The kernel is neither binary identical nor proven safe to
+boot. The original installed device signing and OTA-partition identity
+gates remain open; `flash_ready=false`.
