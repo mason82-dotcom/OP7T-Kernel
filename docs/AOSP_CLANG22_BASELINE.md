@@ -152,3 +152,32 @@ embedded build identity, and module signer metadata. Avoid attributing all
 remaining differences to the build timestamp before examining actual code
 and other build-dependent data. Do not modify the source configuration or
 the reference partition images in pursuit of hash equality.
+
+## Bytewise kernel image evidence (Raspberry Pi, 2026-10-26)
+
+The local binary scan confirmed the same length (48,713,752 bytes) but
+**11,016,552 different bytes (22.6149%)** between the extracted original
+OTA kernel and the AOSP Clang-22 rebuild, across 10,066 4-KiB blocks and
+45 distinct one-MiB regions. The first differing byte was offset 2076.
+Most differences were in MiB regions 25–34, where some regions had
+nearly every byte differ.
+
+The original kernel build banner:
+`build-user@build-host`, `Wed Oct 21 11:17:11 MSK 2026`.
+Clang-22 rebuild banner:
+`op7t-kernel@buildhost`, `Mon Oct 19 16:51:17 UTC 2026`.
+Both banners identify **the same Android Clang 22.0.2 / LLD 22.0.2
+prebuilt revision**. However the actual embedded `IKCFG_ST` starts at
+offset 35,122,456 in the reference versus 35,065,112 in the rebuild,
+a displacement of 57,344 bytes.
+
+**Interpretation caution:** The 22.6149% byte difference is not an
+estimate of the percentage of machine instructions changed. The images
+may have relocated blocks; a position-by-position comparison reports
+those bytes as different even when the content is identical elsewhere.
+Conversely the same file size and matching symbol CRCs are not proof of
+instruction equivalence. The next offline test should search for
+shifted identical byte blocks around key regions before attributing
+the divergence to timestamps, signing, linking or compile flags.
+
+No signing or boot safety gate is relaxed. `flash_ready=false`.
