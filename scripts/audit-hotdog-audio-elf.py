@@ -165,7 +165,7 @@ def inspect_archive(path, expected_archive_sha256=None):
             if any(p in ("", ".", "..") for p in parts):
                 raise ElfAuditError("Unsafe ZIP member path")
             roots.add(parts[0])
-            if len(parts) == 2 and parts[1] == MEMBER and not entry.is_dir():
+            if len(parts) > 2 and "/".join(parts[1:]) == MEMBER and not entry.is_dir():
                 candidates.append(entry)
         if len(roots) != 1 or roots.pop() != "proprietary_vendor_oneplus_hotdog-17.0":
             raise ElfAuditError("Unexpected hotdog ZIP root")
