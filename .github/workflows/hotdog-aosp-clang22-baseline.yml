@@ -1,8 +1,6 @@
 name: Hotdog AOSP Clang 22 baseline (experimental)
 
 on:
-  push:
-    branches: [experiment/hotdog-aosp-clang-r596125]
   workflow_dispatch:
 
 permissions:
