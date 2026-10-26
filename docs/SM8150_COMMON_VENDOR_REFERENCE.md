@@ -507,6 +507,53 @@ audit should carefully distinguish relocations/literal-pointer
 candidates from validated instruction-level cross-references.
 Do not modify the audio library to force any `DT_NEEDED` entry.
 
+### Read-only A2DP ELF relocation and pointer candidates
+
+The next offline tool,
+[`scripts/audit-hotdog-a2dp-relocations.py`](../scripts/audit-hotdog-a2dp-relocations.py),
+checks the existing ZIP and audio ELF SHA-256, then reads the
+single audio ELF in bounded memory. It uses ELF32 program/section
+headers to map the **complete NUL-delimited A2DP string**
+`/odm/lib/liba2dpoffload.so` (previously at `0x1654f`) to a
+file-backed virtual address. It then scans:
+
+- **4-byte-aligned raw ELF words** whose little-endian value equals
+  that virtual address. These are **candidate** literal pointer values,
+  not confirmed usable pointers or ARM/Thumb instructions.
+- `SHT_REL` and `SHT_RELA` entries whose recorded addend equals
+  the same A2DP virtual address. For `SHT_REL`, the implicit addend
+  is only read when the relocation slot maps unambiguously into
+  file-backed `PT_LOAD` data. It reports the numeric relocation
+  type and symbol index, without guessing linkage semantics.
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  git show "${REF}:scripts/audit-hotdog-a2dp-relocations.py" \
+    > "$DIR/audit-a2dp-relocs.py.partial"
+  mv "$DIR/audit-a2dp-relocs.py.partial" "$DIR/audit-a2dp-relocs.py"
+
+  python3 "$DIR/audit-a2dp-relocs.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    --expect-archive-sha256 c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078 \
+    --expect-elf-sha256 08a20a73c123c793d717f1b8e7078df1b9efb3853753fae7fac269d3a20a829f \
+    | tee "$DIR/a2dp-relocations-audit.json"
+)
+```
+
+A matching relocation or 32-bit word is **not** a proven
+instruction-level code reference and certainly not confirmation
+that `dlopen` receives the string. Conversely, zero exact
+pointer candidates cannot exclude PC-relative ARM/Thumb address
+construction or indirect references. No binary data are written
+or executed. Do not flash or patch the HAL; **`flash_ready=false`**.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
