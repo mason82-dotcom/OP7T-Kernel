@@ -359,3 +359,35 @@ investigation. The map's BSS/virtual boundaries are not raw Image
 extent. The kernel is neither binary identical nor proven safe to
 boot. The original installed device signing and OTA-partition identity
 gates remain open; `flash_ready=false`.
+
+## Dense 128-byte read-only anchor scan (Raspberry Pi, 2026-10-26)
+
+The user reran a read-only original-OTA vs AOSP-Clang-22
+`.rodata` scan with 128-byte anchors every 64 KiB across the
+**rebuilt Image's** offsets 26,738,688–38,883,328. A ±128-KiB
+search window in the rebuild produced 186 classified samples:
+
+- 1 unique anchor at the same position;
+- **58** unique anchors found at shifted positions;
+- 85 anchors not found within the bounded window;
+- 5 ambiguous duplicate matches;
+- 37 low-entropy anchors skipped.
+
+The most frequent shifts are **−57,216 bytes (15 sampled anchors)**
+and **−11,776 bytes (7 sampled anchors)**, with other localized shifts.
+The −57,216-byte population occurs especially around original
+offsets 35.3–38.9 MiB, whereas the IKCONFIG member starts at
+35,122,456 (original) vs 35,065,112 (rebuilt): **−57,344 bytes**.
+The compressed GZIP stream differs in length by +83 bytes, so it is
+plausible that alignment/padding contributes to later shifts.
+This is a hypothesis, not proof: the IKCONFIG and later-anchor
+displacements differ by 128 bytes.
+
+**Critical measurement limitation:** The reported longest runs of
+32,896 bytes are exactly the prior script's **maximum extension**
+(`16,384 + 128 + 16,384`). They demonstrate matching data for
+*at least* 32,896 bytes, not the true full length of those regions.
+Follow up by extending selected unique anchor pairs at fixed shifts,
+using bounded binary search for the first neighboring mismatch and
+checking the resulting matched ranges. Avoid interpreting shifted
+constants as safe execution or flash readiness. `flash_ready=false`.
