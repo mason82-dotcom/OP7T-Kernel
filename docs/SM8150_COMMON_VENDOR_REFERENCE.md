@@ -477,6 +477,36 @@ an actual ARM instruction reference, a `dlopen` call with the A2DP
 path, or a successfully loaded common-vendor library. No firmware
 is modified; `flash_ready=false`.
 
+### ELF path mapping and imported linker symbols (Pi, 2026-10-26)
+
+The user ran `scripts/audit-hotdog-elf-path-segment.py` on the
+exact locally verified ZIP and Audio HAL ELF (both SHA-256 checks
+passed). The reported A2DP string mapping and imported symbols:
+
+| Observation | User-observed result |
+| --- | --- |
+| Full `/odm/lib/liba2dpoffload.so` | `0x1654f`, 91,471 bytes into the ELF |
+| Section | **`.rodata`**, index **12**, file range `[80080, 218412)`, `sh_addr=80080` |
+| `PT_LOAD` | file start `0`, read-only `R` |
+| Link-time ELF virtual address | **`0x1654f`**, not an actual ASLR load address |
+| `dlopen` | **1** `SHT_DYNSYM` symbol, **1 undefined import** |
+| `dlsym` | **1** `SHT_DYNSYM` symbol, **1 undefined import** |
+| `android_dlopen_ext` | **0** dynamic name matches |
+| Probe status | `PATH_MAPPED_AND_DLOPEN_IMPORT_OBSERVED` |
+| ELF executed / extracted | **false / false** |
+| Runtime path argument or successful loading proven | **false** |
+| Kernel release | `flash_ready=false` |
+
+These observations strengthen the **dynamic A2DP loading
+hypothesis**. Both the complete A2DP ODM path and the presence
+of undefined `dlopen`/`dlsym` dynamic symbols are independently
+present in the same ELF. Crucially they do **not** yet show any
+ARM/Thumb instruction that references the path, passes it to
+`dlopen`, or executes at runtime. A future read-only ARM reference
+audit should carefully distinguish relocations/literal-pointer
+candidates from validated instruction-level cross-references.
+Do not modify the audio library to force any `DT_NEEDED` entry.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
