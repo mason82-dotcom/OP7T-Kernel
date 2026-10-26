@@ -683,6 +683,68 @@ No `sudo`, `apt install`, changes to repositories, code modifications,
 OTA partition writes or kernel rebuilds are part of the audit.
 `flash_ready=false`.
 
+### GNU ARM disassembly: 127,841 instruction lines, zero simple text hits
+
+On the Raspberry Pi the version-aware probe detected
+**`arm-linux-gnueabi-objdump`** and successfully ran against the
+original SHA-256-verified ZIP and Audio HAL using an anonymous
+RAM descriptor (no extraction or ELF execution).
+
+| Actual Pi finding | Value |
+| --- | --- |
+| `selected_tool_flavor` | `gnu-arm` |
+| `selected_tool_name` | `arm-linux-gnueabi-objdump` |
+| `instruction_lines_parsed` | **127,841** |
+| `a2dp_exact_address_text_hit_count` | **0** |
+| `loader_symbol_text_hit_count` | **0** |
+| `candidate_lines` | `[]` |
+| Disassembler status | `DISASSEMBLY_TEXT_CANDIDATES_RECORDED` |
+| Hash checks | ZIP **true**, ELF **true** |
+| Binary executed/extracted | **false / false** |
+
+These are **zero textual hits in the disassembled instructions**,
+not a determination that no ARM/Thumb code uses the A2DP string.
+Imports in `SHT_DYNSYM`, `.rel.plt` and indirect PLT/GOT call
+paths need not appear as the literal text `dlopen` or `0x1654f`
+in the particular GNU disassembly format used.
+
+The new independent
+[`scripts/audit-hotdog-audio-import-relocations.py`](../scripts/audit-hotdog-audio-import-relocations.py)
+checks the original pinned ZIP+ELF SHA-256, then inspects
+`SHT_DYNSYM` and symbol-indexed `SHT_REL`/`SHT_RELA` entries
+for **`dlopen`**, **`dlsym`** and
+**`android_dlopen_ext`**. It reports the relocation slot's
+ELF virtual address, relocation type number, and dynamic symbol
+index, without guessing PLT stub addresses, call sites, or the A2DP
+string argument. Only one small ELF is read directly from ZIP into
+bounded memory; binary content is never executed or persisted.
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH="experiment/hotdog-aosp-clang-r596125"
+  REF="refs/remotes/origin/${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  git show "${REF}:scripts/audit-hotdog-audio-import-relocations.py" \
+    > "$DIR/audit-import-relocations.py.tmp"
+  mv "$DIR/audit-import-relocations.py.tmp" \
+    "$DIR/audit-import-relocations.py"
+
+  python3 "$DIR/audit-import-relocations.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    | tee "$DIR/audio-import-relocations-audit.json"
+)
+```
+
+Interpret `loader_imports.dlopen.relocation_samples` as **relocation
+slot metadata** only. Even a confirmed `R_ARM_JUMP_SLOT`
+relocation is not a proof of an invoked function, let alone
+that `/odm/lib/liba2dpoffload.so` is passed as its argument.
+`flash_ready=false`.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
