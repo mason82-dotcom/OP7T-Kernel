@@ -489,6 +489,52 @@ To run it against the existing local ZIP (no archive extraction):
 The kernel Clang-22 experiment remains separate and non-flashable.
 `flash_ready=false`.
 
+## Completed real-ZIP Blueprint structure scan (Raspberry Pi, 2026-10-26)
+
+The user ran `scripts/audit-hotdog-vendor-module-blocks.py` on the
+existing **114,977,497-byte local archive** (local SHA-256 recorded
+above). Results:
+
+- `blueprint_top_level_blocks_found=6` (Soong namespace plus 5
+  `cc_prebuilt_library_shared` module blocks).
+- `expected_product_package_count=5`.
+- `missing_package_module_names=[]`.
+- `duplicate_package_module_names=[]`.
+- `missing_static_src_path_samples_total=0`.
+- All **5/5** module blocks reference one present literal source
+  filename each; no proprietary blobs were extracted or executed.
+- `status=STATIC_BP_MODULE_CANDIDATES_FOUND`;
+  `soong_semantics_verified=false`,
+  `binary_integrity_verified=false`,
+  `flash_ready=false`.
+
+| Module | `compile_multilib` | `relative_install_path` | Source ZIP member |
+| --- | --- | --- | --- |
+| `audio.primary.msmnile_odm` | `"32"` | `"hw"` | `proprietary/odm/lib/hw/audio.primary.msmnile.so` |
+| `com.qti.sensor.imx471` | `"64"` | `"camera"` | `proprietary/odm/lib64/camera/com.qti.sensor.imx471.so` |
+| `com.qti.sensor.imx481` | `"64"` | `"camera"` | `proprietary/odm/lib64/camera/com.qti.sensor.imx481.so` |
+| `com.qti.sensor.imx586` | `"64"` | `"camera"` | `proprietary/odm/lib64/camera/com.qti.sensor.imx586.so` |
+| `com.qti.sensor.s5k3m5` | `"64"` | `"camera"` | `proprietary/odm/lib64/camera/com.qti.sensor.s5k3m5.so` |
+
+All five inspected blocks reported `device_specific=true`,
+`prefer=true`, and a nested `strip` object. The audio block
+additionally declares `stem="audio.primary.msmnile"`. These are
+**textual Blueprint observations**, not fully evaluated Soong
+properties; the effective `stem`, installed namespace and ELF
+dependency graph are not yet independently certified.
+
+In particular, the upstream device's `extract-files.py` declares
+a targeted ODM audio `DT_NEEDED` path fixup. Merely finding the
+file and `Android.bp` block cannot verify that this fixup was
+already applied to the archived library or that the required common
+vendor libraries are available.
+
+Next investigate the separately required
+`proprietary_vendor_oneplus_sm8150-common` tree and its verifiable
+branch/commit, inventory its own module and firmware sources
+separately, then check cross-tree references without installing
+or repackaging firmware. **`flash_ready=false`.**
+
 ## Subsequent compatibility analysis (not automatic)
 
 1. Obtain a verifiable **source revision** for the hotdog ZIP, and
