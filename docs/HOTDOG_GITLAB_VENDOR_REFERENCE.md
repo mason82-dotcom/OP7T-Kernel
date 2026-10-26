@@ -329,6 +329,61 @@ results must come from running the updated auditor on the
 user's ZIP, not from extrapolating its earlier partial inventory.
 `flash_ready=false`.
 
+## Confirmed radio, copyfile and package filename alignment (Raspberry Pi, 2026-10-26)
+
+The user reran the expanded static audit of the **previously downloaded**
+114,977,497-byte vendor ZIP (local SHA-256
+`c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078`).
+
+| File/makefile alignment | Confirmed observation |
+| --- | --- |
+| `PRODUCT_COPY_FILES` source names resolving inside ZIP | **759/759** |
+| Missing copy sources | **0** |
+| Duplicate destination strings | **0** |
+| Unparsed copy tokens | **0** |
+| BoardConfig `AB_OTA_PARTITIONS` tokens | **19** |
+| Unique corresponding `radio/<partition>.img` names | **19/19** |
+| Unmatched board radio partition/image names | **0/0** |
+| `PRODUCT_PACKAGES` tokens | **5** |
+| Candidate shared-library basenames in ZIP | **5/5** |
+| Archive `proprietary/` and `radio/` files not direct copied | **24: five candidate .so files and 19 radio images** |
+| Inspector | `STATIC_COPY_REFERENCES_RESOLVE` / `STATIC_NAMES_MATCH` |
+| `flash_ready` | `false` |
+
+The 19 names are `LOGO`, `abl`, `aop`, `bluetooth`,
+`cmnlib`, `cmnlib64`, `devcfg`, `dsp`, `hyp`,
+`imagefv`, `keymaster`, `modem`, `multiimgoem`,
+`qupfw`, `storsec`, `tz`, `uefisecapp`, `xbl`, and
+`xbl_config`. These are **firmware/bootloader-sensitive** images.
+Filename matching is not permission to flash or replace them.
+
+Five exact candidate matches (filenames only):
+
+| Product package | ZIP path candidate |
+| --- | --- |
+| `audio.primary.msmnile_odm` | `proprietary/odm/lib/hw/audio.primary.msmnile.so` |
+| `com.qti.sensor.imx471` | `proprietary/odm/lib64/camera/com.qti.sensor.imx471.so` |
+| `com.qti.sensor.imx481` | `proprietary/odm/lib64/camera/com.qti.sensor.imx481.so` |
+| `com.qti.sensor.imx586` | `proprietary/odm/lib64/camera/com.qti.sensor.imx586.so` |
+| `com.qti.sensor.s5k3m5` | `proprietary/odm/lib64/camera/com.qti.sensor.s5k3m5.so` |
+
+The [official device extract-files.py](https://github.com/crdroidandroid/android_device_oneplus_hotdog/blob/17.0/extract-files.py)
+declares `namespace_imports=['vendor/oneplus/sm8150-common']` and
+applies an ODM audio ELF `DT_NEEDED` fixup to
+`odm/lib/hw/audio.primary.msmnile.so`.
+This **separate common-vendor tree** is therefore relevant to any
+actual full-ROM build, alongside the `hotdog` tree. The canonical
+device `Android.bp` itself contains `soong_namespace {}`.
+
+**Outstanding checks:** verify the generated vendor
+`Android.bp`/`Android.mk` definitions for the five
+`PRODUCT_PACKAGES` names; the correct `sm8150-common` source
+commit and its own payload; firmware identities against the actual
+installed ROM; file integrity beyond ZIP directory entries; and
+kernel module signer/ABI runtime compatibility. Static matches do
+not imply a bit-reproducible OTA nor release-safe kernel.
+`flash_ready=false`.
+
 ## Subsequent compatibility analysis (not automatic)
 
 1. Obtain a verifiable **source revision** for the hotdog ZIP, and
