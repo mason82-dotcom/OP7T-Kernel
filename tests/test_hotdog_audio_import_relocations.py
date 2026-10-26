@@ -75,7 +75,8 @@ class AudioImportRelocationTests(unittest.TestCase):
         # Enlarge header table by adding a .plt section as sixth member.
         shstr = b"\0.shstrtab\0.dynstr\0.dynsym\0.rel.plt\0.plt\0"
         blob[0x200:0x200 + len(shstr)] = shstr
-        struct.pack_into("<I", blob, 16 + 34, 6)  # e_shnum
+        struct.pack_into("<H", blob, 16 + 32, 6)  # ELF32 e_shnum
+        struct.pack_into("<I", blob, 0x600 + 1 * 40 + 20, len(shstr))
         struct.pack_into("<IIIIIIIIII", blob, 0x600 + 5 * 40,
                          shstr.index(b".plt"), 1, 0x6, 0x4300,
                          0x500, 0x20, 0, 0, 4, 4)
