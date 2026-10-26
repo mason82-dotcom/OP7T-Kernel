@@ -122,7 +122,8 @@ def inspect_elf(data):
         if typ != 8 and size:
             bounded(data, offset, size, "section body")
         sections.append({"name": textname, "type": typ, "offset": offset,
-                         "size": size, "link": link, "entsize": entsize})
+                         "size": size, "link": link, "entsize": entsize,
+                         "address": addr, "flags": flags})
 
     symbols = {}
     dynsym_sections = set()
@@ -161,6 +162,15 @@ def inspect_elf(data):
             if sym["name"] in observed and sym["is_undefined"]:
                 observed[sym["name"]]["undefined_dynsym_count"] += 1
 
+    # Section-header bounds only. PLT stub offsets must not be inferred
+    # from relocation ordinal without architecture-specific validation.
+    plt_sections = [{
+        "name": entry["name"],
+        "file_offset_hex": hex(entry["offset"]),
+        "vaddr_hex": hex(entry["address"]),
+        "size_bytes": entry["size"],
+        "executable_flag": bool(entry["flags"] & 0x4),
+    } for entry in sections if entry["name"] in (".plt", ".iplt", ".plt.got")]
     scanned = 0
     scanned_sections = []
     for section in sections:
@@ -196,8 +206,10 @@ def inspect_elf(data):
             if len(slot["relocation_samples"]) < MAX_SAMPLES:
                 slot["relocation_samples"].append({
                     "section": section["name"],
+                    "relocation_entry_index": i,
                     "relocation_offset_vaddr_hex": hex(r_offset),
                     "relocation_type_id": rtype,
+                    "relocation_type_name": "R_ARM_JUMP_SLOT" if rtype == 22 else None,
                     "dynsym_index": symindex,
                     "undefined_symbol": sym["is_undefined"],
                 })
@@ -205,6 +217,7 @@ def inspect_elf(data):
         "schema": "op7t-hotdog-audio-import-relocations-v1",
         "scope": "ELF32_SHT_DYNSYM_and_REL_RELA_metadata_only",
         "relocation_sections_examined": scanned_sections,
+        "plt_section_headers": plt_sections,
         "total_relocation_entries_examined": scanned,
         "loader_imports": observed,
         "status": "IMPORT_RELOCATION_METADATA_RECORDED",
@@ -215,7 +228,7 @@ def inspect_elf(data):
         "elf_executed": False,
         "elf_extracted_to_disk": False,
         "flash_ready": False,
-        "limitations": "Relocation slots are ELF link-time vaddrs, not disassembled PLT stub or call sites. No ARM/Thumb dataflow or device runtime examined.",
+        "limitations": "R_ARM_JUMP_SLOT and relocation entry ordinals describe linker metadata. PLT section headers do not map ordinals to stub addresses; no call-site or ARM/Thumb register dataflow verified.",
     }
 
 
