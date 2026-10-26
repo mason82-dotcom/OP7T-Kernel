@@ -654,11 +654,11 @@ Use the existing tool and original local ZIP:
   set -euo pipefail
   cd ~/Projekte/OP7T-Kernel-KSU-Review
   BRANCH=experiment/hotdog-aosp-clang-r596125
-  REF="refs/remotes/origin/\${BRANCH}"
+  REF="refs/remotes/origin/${BRANCH}"
   DIR="$PWD/.work/vendor-hotdog-17"
 
-  git fetch origin "+refs/heads/\${BRANCH}:\${REF}"
-  git show "\${REF}:scripts/audit-hotdog-a2dp-llvm-objdump.py" \
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  git show "${REF}:scripts/audit-hotdog-a2dp-llvm-objdump.py" \
     > "$DIR/audit-llvm-text.py.partial"
   mv "$DIR/audit-llvm-text.py.partial" "$DIR/audit-llvm-text.py"
 
