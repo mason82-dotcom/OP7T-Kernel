@@ -391,3 +391,32 @@ Follow up by extending selected unique anchor pairs at fixed shifts,
 using bounded binary search for the first neighboring mismatch and
 checking the resulting matched ranges. Avoid interpreting shifted
 constants as safe execution or flash readiness. `flash_ready=false`.
+
+## Focused shifted-anchor probe for .rodata (Raspberry Pi, 2026-10-26)
+
+The user ran a 128-byte anchor search at 64-KiB intervals across the
+**rebuilt** `.rodata` extent 26,738,688–38,883,328. Each original anchor
+was searched ±128 KiB inside the Clang-22 image. Results:
+
+- Identical at original position: **1**.
+- Uniquely found elsewhere: **58**.
+- Not found in window: **85**.
+- Multiple occurrences (ambiguous): **5**.
+- Low-entropy anchors skipped: **37**.
+- Most frequent exact relocations: **−57,216 bytes (15 anchors)**
+  and **−11,776 bytes (7 anchors)**. Other distinct shifts occur.
+- The measured `IKCFG_ST` relocation is **−57,344 bytes**, which is
+  128 bytes away from the prevalent −57,216-byte shift. These cannot
+  yet be equated or assigned a single causal linker change.
+
+The longest reported "continuous" match **32,896 bytes** is the
+**algorithmic cap**, not a measured physical endpoint: the probe only
+extended the 128-byte anchor by up to 16 KiB on each side. It proves
+matching content **at least** that long for each capped hit. Counted
+hits may overlap; summing their lengths would overstate coverage.
+
+Next probe exact continuous equal-run lengths at fixed shifts 0,
+−11,776, −57,216 and −57,344, clamped to the stored image length.
+Separate low-entropy padding from information-rich matching data.
+Do not rebuild, flash, or loosen module-signature enforcement.
+`flash_ready=false`.
