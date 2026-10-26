@@ -30,6 +30,19 @@ MAX_LINE = 350
 ADDR = re.compile(r"^\s*([0-9a-fA-F]{4,8}):\s+")
 A2DP_ADDR = re.compile(r"(?i)(?:0x)?0*1654f\b")
 DLOPEN = re.compile(r"\b(?:dlopen|dlsym)(?:@plt|@.*)?\b", re.I)
+# Previously cross-checked from original ELF A32 three-opcode PLT stubs and
+# their independently parsed R_ARM_JUMP_SLOT relocation destinations.
+PINNED_LOADER_PLT_TARGETS = {
+    "dlopen": 0xB12A0,
+    "dlsym": 0xB12B0,
+}
+MAX_PLT_CALLER_SAMPLES = 32
+DIRECT_BRANCH = re.compile(
+    r"^\s*(?P<pc>[0-9a-fA-F]{4,8}):\s+"
+    r"(?P<opcode>blx?(?:\.w)?|b(?:\.w|\.n)?)\s+"
+    r"(?P<target>(?:0x)?[0-9a-fA-F]{4,8})(?![0-9a-fA-F])(?=\s|$|<)",
+    re.I,
+)
 
 
 # Search installed (possibly version-suffixed) executables before suggesting apt.
@@ -101,12 +114,19 @@ def verified_audio(path):
 
 
 def parse_disassembly(output, max_lines=250000):
-    """Collect candidate lines only; no instruction-level dataflow reconstruction."""
+    """Find text-only hints AND exact target operands of direct branch lines.
+
+    Branch target matches imply a static direct code-edge candidate at the
+    *disassembled text level*. They do not prove whether an execution path
+    reaches it, whether an indirect BLX calls it, or the runtime r0 argument.
+    """
     candidates = []
     a2dp = 0
     loader = 0
     instruction_lines = 0
-    tail = deque(maxlen=2)
+    tail = deque(maxlen=8)
+    plt_caller_counts = {name: 0 for name in PINNED_LOADER_PLT_TARGETS}
+    plt_caller_samples = {name: [] for name in PINNED_LOADER_PLT_TARGETS}
     for raw in output.splitlines():
         line = raw.strip()[:MAX_LINE]
         if not ADDR.match(line):
@@ -114,8 +134,7 @@ def parse_disassembly(output, max_lines=250000):
         instruction_lines += 1
         if instruction_lines > max_lines:
             raise ObjdumpProbeError("Disassembler emitted excessive instruction lines")
-        # Only look within assembler operand / comment, never match instruction's
-        # own address. ARM/thumb symbolization differs between LLVM versions.
+        # Ignore instruction address when detecting A2DP literal operands.
         parts = line.split(":", 1)
         operands = parts[1]
         is_a2dp = bool(A2DP_ADDR.search(operands))
@@ -129,9 +148,25 @@ def parse_disassembly(output, max_lines=250000):
                 "instruction_vaddr": parts[0].strip(),
                 "reason": (["literal_a2dp_address_text"] if is_a2dp else []) +
                           (["mentions_loader_symbol"] if is_loader else []),
-                "preceding_lines": list(tail),
+                "preceding_lines": list(tail)[-2:],
                 "disassembler_line": line,
             })
+        match = DIRECT_BRANCH.match(line)
+        if match:
+            target = int(match.group("target"), 16)
+            for name, expected in PINNED_LOADER_PLT_TARGETS.items():
+                if target == expected:
+                    plt_caller_counts[name] += 1
+                    if len(plt_caller_samples[name]) < MAX_PLT_CALLER_SAMPLES:
+                        plt_caller_samples[name].append({
+                            "instruction_vaddr_hex": "0x" + match.group("pc").lower(),
+                            "instruction": match.group("opcode").lower(),
+                            "target_vaddr_hex": hex(target),
+                            "instruction_line": line,
+                            "preceding_disassembly_lines": list(tail),
+                            "is_direct_branch_text": True,
+                            "a2dp_argument_verified": False,
+                        })
         tail.append(line)
     return {
         "instruction_lines_parsed": instruction_lines,
@@ -139,6 +174,18 @@ def parse_disassembly(output, max_lines=250000):
         "loader_symbol_text_hit_count": loader,
         "candidate_lines": candidates,
         "candidates_capped": a2dp + loader > MAX_CANDIDATES,
+        "direct_plt_branch_targets": {
+            name: {
+                "target_vaddr_hex": hex(target),
+                "direct_branch_text_hits": plt_caller_counts[name],
+                "caller_samples": plt_caller_samples[name],
+                "caller_samples_capped": plt_caller_counts[name] > MAX_PLT_CALLER_SAMPLES,
+                "indirect_blx_register_calls_not_resolved": True,
+                "runtime_branch_reachability_verified": False,
+                "r0_a2dp_path_argument_verified": False,
+            }
+            for name, target in PINNED_LOADER_PLT_TARGETS.items()
+        },
     }
 
 
@@ -259,7 +306,7 @@ def inspect(path, llvm_objdump_path=None, gnu_objdump_path=None):
             "checked_binary_names": list(LLVM_CANDIDATES + GNU_CANDIDATES),
         }
     return {
-        "schema": "op7t-hotdog-a2dp-disassembler-text-v2",
+        "schema": "op7t-hotdog-a2dp-disassembler-text-v3",
         "input_zip_sha256_verified": True,
         "input_elf_sha256_verified": True,
         "path_string_offset_hex": "0x1654f",
@@ -273,8 +320,10 @@ def inspect(path, llvm_objdump_path=None, gnu_objdump_path=None):
         "binary_extracted_to_disk": False,
         "flash_ready": False,
         "limitations": "LLVM reads ELF through stdin; ARM GNU through anonymous "
-                       "Linux memfd. Text hits may be false positives; zero hits "
-                       "cannot exclude ARM/Thumb PC-relative or indirect references.",
+                       "Linux memfd. Static textual direct branch targets matching "
+                       "previously confirmed PLT stubs do not establish runtime execution "
+                       "or prove r0 points to A2DP. Indirect register calls, dataflow, "
+                       "and nonstandard disassembler formats are not resolved.",
     }
 
 
