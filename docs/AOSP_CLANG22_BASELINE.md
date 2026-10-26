@@ -258,3 +258,36 @@ the raw DEFLATE payload and a local `gzip -n -9` recompression,
 changing kernel configuration.
 
 The two Images are not byte-identical. `flash_ready=false`.
+
+## Exact IKCONFIG GZIP decomposition (Raspberry Pi, 2026-10-26)
+
+Both embedded IKCONFIG gzip streams have identical 10-byte headers
+(`1f8b0800000000000203`), `mtime=0`, `XFL=2`,
+`OS=3`. Their 8-byte trailers are also byte-identical,
+meaning the CRC32 and ISIZE of the decoded content agree.
+The sole difference inside the gzip streams is the compressed
+**DEFLATE payload**:
+
+- Original reference OTA: 36,465 bytes;
+  SHA-256 `d1f73a41111879f15541904ca51bb049aec5eec1f17caa7f480c7cecb58eb151`.
+- New CI Clang-22 build: 36,548 bytes;
+  SHA-256 `dc334c19cf550b56fe44e9586fae5c565b387427295b1fc640ba18141e325ed1`.
+- Decompressed configuration from both: 163,567 bytes,
+  SHA-256 `9dcf7bdd77569401c448ac7b23425350693d217be96744cbb70da8a7dff50b86`.
+- Locally running GNU gzip **1.13** with `gzip -n -f -9` on
+  that exact 163,567-byte config reproduces the **entire rebuilt CI
+  gzip stream byte-for-byte**, not the original reference stream.
+
+This identifies the local gzip 1.13 output as an exact match to the CI
+gzip payload. It **does not prove that CI itself used gzip 1.13**;
+different compressor versions may produce identical bytes. The
+reference OTA's compressor implementation/version remains unproven.
+The 83-byte difference in gzip member length alone cannot account for
+the 57,344-byte IKCONFIG section displacement in the overall kernel.
+
+Suggested next step: test candidate GNU gzip versions in isolated
+**compression-only** probes and compare the entire member SHA-256.
+Do not modify the official kernel sources or try to force matching
+kernel hash by replacing signed or embedded bytes. The original
+installed-device trust and flash gates remain unverified;
+`flash_ready=false`.
