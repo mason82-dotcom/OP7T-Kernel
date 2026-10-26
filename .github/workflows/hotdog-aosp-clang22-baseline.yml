@@ -1,0 +1,160 @@
+name: Hotdog AOSP Clang 22 baseline (experimental)
+
+on:
+  push:
+    branches: [experiment/hotdog-aosp-clang-r596125]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hotdog-aosp22-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    name: Original crDroid 13 baseline (AOSP Clang r596125)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout experimental kernel review repository
+        uses: actions/checkout@v4
+
+      - name: Validate pinned original crDroid kernel source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source config/upstream.lock
+          test "$DEVICE" = hotdog
+          test "$ROM_ANDROID" = 17
+          test "$ROM_CRDROID" = 13
+          test "$UPSTREAM_SHA" = 57037290bb57caefd3c337db3511fca5751fb4ef
+          bash -n scripts/fetch-source.sh scripts/build.sh
+          python3 -m unittest discover -s tests -q
+
+      - name: Install kernel build dependencies (without host Clang)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex make build-essential git python3 \
+            libelf-dev libssl-dev binutils kmod \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+          df -h .
+
+      - name: Fetch immutable AOSP Clang r596125 prebuilt (sparse)
+        shell: bash
+        env:
+          AOSP_PREBUILT_SHA: 29182889399818f97baa65ea238c80e8117981eb
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/.work/aosp-clang-prebuilts"
+          git clone --depth=1 --filter=blob:none --sparse --single-branch \
+            --branch android17-release \
+            https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
+            "$ROOT"
+          git -C "$ROOT" fetch --no-tags --depth=1 --filter=blob:none origin "$AOSP_PREBUILT_SHA"
+          git -C "$ROOT" checkout --detach "$AOSP_PREBUILT_SHA"
+          git -C "$ROOT" sparse-checkout set clang-r596125
+          test "$(git -C "$ROOT" rev-parse HEAD)" = "$AOSP_PREBUILT_SHA"
+          BIN="$ROOT/clang-r596125/bin"
+          for exe in clang ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip; do
+            test -x "$BIN/$exe" || { echo "Missing AOSP tool: $exe" >&2; exit 1; }
+          done
+          mkdir -p .work/ci
+          printf '%s\n' "$AOSP_PREBUILT_SHA" > .work/ci/aosp-prebuilt-commit.txt
+          "$BIN/clang" --version | tee .work/ci/clang-version.txt
+          "$BIN/ld.lld" --version | tee .work/ci/lld-version.txt
+          grep -Fq 'clang version 22.0.2' .work/ci/clang-version.txt
+          grep -Fq 'based on r596125' .work/ci/clang-version.txt
+          grep -Eq 'LLD 22\\.0\\.2' .work/ci/lld-version.txt
+          echo "AOSP_CLANG_BIN=$BIN" >> "$GITHUB_ENV"
+          df -h .
+
+      - name: Audit selected compiler and linker provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/audit-toolchain.py \
+            --clang "$AOSP_CLANG_BIN/clang" \
+            --ld "$AOSP_CLANG_BIN/ld.lld" \
+            --require-reference-layout \
+            --output .work/ci/aosp-toolchain-report.json
+
+      - name: Compile source-pinned baseline without NetHunter or KernelSU
+        shell: bash
+        env:
+          CC: ${{ env.AOSP_CLANG_BIN }}/clang
+          LD: ${{ env.AOSP_CLANG_BIN }}/ld.lld
+          AR: ${{ env.AOSP_CLANG_BIN }}/llvm-ar
+          NM: ${{ env.AOSP_CLANG_BIN }}/llvm-nm
+          OBJCOPY: ${{ env.AOSP_CLANG_BIN }}/llvm-objcopy
+          OBJDUMP: ${{ env.AOSP_CLANG_BIN }}/llvm-objdump
+          STRIP: ${{ env.AOSP_CLANG_BIN }}/llvm-strip
+          LLVM_TOOLCHAIN_BIN: ${{ env.AOSP_CLANG_BIN }}
+          JOBS: 2
+        run: |
+          set -euo pipefail
+          bash scripts/build.sh baseline 2>&1 | tee .work/ci/build-baseline.log
+          test "$(cat .work/artifacts/baseline/upstream-commit.txt)" = \
+            57037290bb57caefd3c337db3511fca5751fb4ef
+          grep -qx 'CONFIG_MODULE_SIG_FORCE=y' .work/artifacts/baseline/kernel.config
+          grep -qx 'CONFIG_MODVERSIONS=y' .work/artifacts/baseline/kernel.config
+          (cd .work/artifacts/baseline && sha256sum -c SHA256SUMS)
+          echo '=== AOSP Clang 22 baseline Image ==='
+          stat -c '%s bytes' .work/artifacts/baseline/Image
+          sha256sum .work/artifacts/baseline/Image
+          cat .work/artifacts/baseline/kernel.release
+          df -h .
+
+      - name: Prepare bounded failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p .work/ci-diagnostics
+          if test -s .work/ci/build-baseline.log; then
+            tail -n 2500 .work/ci/build-baseline.log > .work/ci-diagnostics/build-log-tail.txt
+          fi
+          for file in aosp-prebuilt-commit.txt clang-version.txt lld-version.txt aosp-toolchain-report.json; do
+            if test -s ".work/ci/$file"; then
+              cp ".work/ci/$file" ".work/ci-diagnostics/$file"
+            fi
+          done
+          printf '%s\n' 'Experimental failure; no device image or flash permission.' \
+            > .work/ci-diagnostics/README.txt
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-aosp22-failed-baseline-${{ github.run_id }}
+          path: .work/ci-diagnostics/
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Upload AOSP toolchain and build reports
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-aosp22-report-${{ github.run_id }}
+          path: |
+            .work/ci/aosp-prebuilt-commit.txt
+            .work/ci/clang-version.txt
+            .work/ci/lld-version.txt
+            .work/ci/aosp-toolchain-report.json
+            .work/artifacts/baseline/artifact-report.json
+            .work/artifacts/baseline/kernel.config
+            .work/artifacts/baseline/kernel.release
+            .work/artifacts/baseline/toolchain-report.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload NON-FLASHABLE raw baseline Image and modules
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotdog-aosp22-unverified-baseline-${{ github.sha }}
+          path: .work/artifacts/baseline/
+          if-no-files-found: error
+          retention-days: 7
