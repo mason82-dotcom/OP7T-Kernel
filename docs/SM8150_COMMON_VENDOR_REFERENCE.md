@@ -182,6 +182,41 @@ present in this text-only workspace, so its actual content, fixup
 and `DT_NEEDED` linkage remain explicitly unverified. The
 standalone kernel build is unchanged. `flash_ready=false`.
 
+## Pi-side cross-tree audio chain: 15/15 verified (2026-10-26)
+
+The user ran `scripts/audit-hotdog-common-audio.py` with the
+existing hotdog ZIP and exact common-vendor build text revision
+`6586000353465cc53b42189be056d5c037e14ef9`.
+
+| Check category | User-confirmed result |
+| --- | --- |
+| Pinned common build file Git blob hash checks | Passed |
+| Hotdog ZIP SHA256 matching prior local archive fingerprint | Passed |
+| Hotdog audio module uniquely defined / package listed | Passed |
+| Hotdog 32-bit, ODM device-specific, `hw` install path, output stem | Passed |
+| Hotdog audio source path in ZIP and Soong `srcs` | Passed |
+| Common audio module uniquely defined / package listed | Passed |
+| Common 32-bit, device-specific, output stem, source declaration | Passed |
+| Individual static assertions | **15 / 15** |
+| `status` | **`STATIC_AUDIO_SOURCE_CHAIN_ALIGNS`** |
+| `common_vendor_blob_file_existence_verified` | `false` |
+| `elf_dt_needed_verified` | `false` |
+| `cross_tree_soong_resolution_verified` | `false` |
+| `installed_rom_compatibility_verified` | `false` |
+| `flash_ready` | **`false`** |
+
+The verified *source-code* declaration of the device extraction
+fixup redirects the hotdog Audio HAL's `DT_NEEDED` entry from
+`/vendor/lib/liba2dpoffload.so` to
+`/odm/lib/liba2dpoffload.so`. The audit did **not** inspect actual
+ELF dynamic tags. Never infer that the fixup is present on disk
+merely because Android.bp and Make names align.
+
+Next verify the existing hotdog ZIP's one audio ELF dynamic table
+**read-only and without extracting it**, using a bounded,
+data-only ELF metadata parser. No common proprietary binaries have
+been downloaded, and ROM/Kernel runtime compatibility is still unknown.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
