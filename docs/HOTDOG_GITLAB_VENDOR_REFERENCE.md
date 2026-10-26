@@ -529,11 +529,7 @@ file and `Android.bp` block cannot verify that this fixup was
 already applied to the archived library or that the required common
 vendor libraries are available.
 
-Next investigate the separately required
-`proprietary_vendor_oneplus_sm8150-common` tree and its verifiable
-branch/commit, inventory its own module and firmware sources
-separately, then check cross-tree references without installing
-or repackaging firmware. **`flash_ready=false`.**
+The separately required [sm8150-common vendor tree](SM8150_COMMON_VENDOR_REFERENCE.md) has now been identified on **GitHub**, with its `17.0` source tip pinned to `6586000353465cc53b42189be056d5c037e14ef9`. Its generated Soong definitions include `liba2dpoffload_odm`, a 32-bit ODM library with output stem `liba2dpoffload`; this provides a concrete source-level candidate for the hotdog audio HAL fixup. These metadata references do not attest a matching installed ROM or permit flashing. **`flash_ready=false`.**
 
 ## Subsequent compatibility analysis (not automatic)
 
