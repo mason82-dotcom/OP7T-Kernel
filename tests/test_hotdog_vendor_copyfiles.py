@@ -102,7 +102,7 @@ class CopyfileAuditTests(unittest.TestCase):
     def test_radio_names_match_board_ota_partition_inventory(self):
         self.make_zip(
             b"PRODUCT_PACKAGES += audio.primary.msmnile_odm com.qti.sensor.imx471\n",
-            board=b"AB_OTA_PARTITIONS += \\n LOGO \\n modem\n",
+            board=b"AB_OTA_PARTITIONS += \\\n LOGO \\\n modem\n",
             extra={
                 ROOT_ZIP + "radio/LOGO.img": b"do not flash",
                 ROOT_ZIP + "radio/modem.img": b"do not flash",
