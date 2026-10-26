@@ -86,7 +86,7 @@ cc_prebuilt_library_shared {
 
     def test_positive_exact_metadata_alignment(self):
         report = self.audit()
-        self.assertEqual(report["status"], "STATIC_AUDIO_SOURCE_CHAIN_ALIGNS")
+        self.assertEqual(report["status"], "STATIC_AUDIO_SOURCE_CHAIN_ALIGNS", report["checks"])
         self.assertEqual(report["checks_satisfied"], report["checks_total"])
         self.assertFalse(report["elf_dt_needed_verified"])
         self.assertFalse(report["common_vendor_blob_file_existence_verified"])
@@ -122,7 +122,8 @@ cc_prebuilt_library_shared {
             b' strip: { none: true },'
         )
         self.make(hotdog_bp=bp)
-        self.assertEqual(self.audit()["status"], "STATIC_AUDIO_SOURCE_CHAIN_ALIGNS")
+        result = self.audit()
+        self.assertEqual(result["status"], "STATIC_AUDIO_SOURCE_CHAIN_ALIGNS", result["checks"])
 
     def test_archive_path_traversal_rejected(self):
         with zipfile.ZipFile(self.zip, "a") as z:
