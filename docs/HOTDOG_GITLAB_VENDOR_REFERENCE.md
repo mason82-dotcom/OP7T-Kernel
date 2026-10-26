@@ -192,6 +192,67 @@ compatibility analysis. Missing `.ko` in this archive does not
 exclude modules in the distinct common vendor tree or in OTA
 `vendor_dlkm`.
 
+
+### Verify PRODUCT_COPY_FILES sources against the downloaded ZIP
+
+The 2026-10-26 local Makefile read returned:
+- BoardConfigVendor.mk: **319 bytes**, **24 lines**, and **zero lines**
+  matching the previous heuristic filter. This does **not** prove
+  the file is empty or has no active instructions; the dedicated
+  copyfile audit now prints up to 40 active (non-comment) lines.
+- hotdog-vendor.mk: **116,834 bytes**, **774 lines**, **761 heuristic
+  matching lines**; previous 70-line sample showed
+  \`PRODUCT_COPY_FILES\` referencing ODM ACDB, sensors, Wi-Fi config,
+  camera calibration and firmware. The 761 matched physical lines
+  are **not** 761 independently checked source-to-destination rules.
+
+Use the new **static, read-only** cross-check to count literal
+\`PRODUCT_COPY_FILES\` mappings, test their source filenames against
+the ZIP directory, identify duplicate destination strings, and
+distinguish Make-generated/dynamic references from missing files.
+
+\`\`\`bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH="experiment/hotdog-aosp-clang-r596125"
+  REF="refs/remotes/origin/${BRANCH}"
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+  mkdir -p "$DIR"
+  git show "${REF}:scripts/audit-hotdog-vendor-copyfiles.py" \
+    > "$DIR/audit-copyfiles.py.partial"
+  mv "$DIR/audit-copyfiles.py.partial" "$DIR/audit-copyfiles.py"
+
+  python3 "$DIR/audit-copyfiles.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    | tee "$DIR/copyfiles-audit.json"
+)
+```
+
+Interpretation:
+- `local_source_rules_found_in_zip`: number of *literal*
+  `vendor/oneplus/hotdog/...` source references whose relative ZIP
+  names exist. Membership does **not** verify contents.
+- `local_source_rules_missing_in_zip`: unresolved literal paths
+  *within this hotdog-specific ZIP*, not necessarily absent from all
+  Android build trees.
+- `duplicate_destination_count`: identical destination *text
+  strings*, not expanded / normalized Android partition paths.
+- `nonliteral_or_unparsed_rule_count`: dynamic Make expressions or
+  syntax the static parser deliberately does not evaluate.
+- `zip_proprietary_and_radio_files_not_in_literal_copy_rules`: may
+  be legitimate firmware/radio resources handled elsewhere.
+- `boardconfig_active_lines`: textual non-comment observations,
+  **never evaluated as build commands**.
+
+The auditor does not extract or execute blobs, evaluate Make variables,
+verify compressed member CRCs, infer proprietary licenses or attest
+the ROM running on a device. Treat its status as a *limited build
+manifest audit*, never a kernel-ABI or bootability verdict.
+`flash_ready=false`.
+
+
 ## Subsequent compatibility analysis (not automatic)
 
 1. Obtain a verifiable **source revision** for the hotdog ZIP, and
