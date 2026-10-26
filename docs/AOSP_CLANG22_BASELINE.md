@@ -181,3 +181,42 @@ shifted identical byte blocks around key regions before attributing
 the divergence to timestamps, signing, linking or compile flags.
 
 No signing or boot safety gate is relaxed. `flash_ready=false`.
+
+## Relocation-anchor sampling (Raspberry Pi, 2026-10-26)
+
+A read-only 128-byte anchor probe with 256-KiB stride and a ±256-KiB
+local search window against the rebuilt Clang-22 `Image` found:
+
+| Original Image region | Unique anchors at same position | Unique moved anchors | Not found | Ambiguous |
+| --- | ---: | ---: | ---: | ---: |
+| 0–8 MiB | 19 | 0 | 13 | 0 |
+| 8–16 MiB | 21 | 0 | 11 | 0 |
+| 16–24 MiB | 16 | 0 | 15 | 1 |
+| 24–32 MiB | 1 | 4 | 23 | 0 |
+| 32–40 MiB | 1 | 9 | 10 | 1 |
+| 40–48 MiB (last partial region) | 6 | 0 | 5 | 0 |
+
+Examples of negative shifts in the 24–40 MiB interval include
+−11,776, −11,280, −17,023, −22,307, −29,697, −33,018,
+−37,897, −49,961, −55,637, and −57,216 bytes.
+The −57,216-byte shift was observed for four different anchors.
+The `IKCFG_ST` header independently shifted by −57,344 bytes.
+These are **not identical offsets** and cannot be conflated.
+
+**Assessment:** At least some content in the middle of the raw Image
+appears to be relocated, while several sampled byte sequences in the
+first 24 MiB and after 40 MiB remain at their original positions.
+There is no uniform global file shift. The probe is *sparse and
+bounded*; a missing 128-byte anchor may reflect changes in its content
+or a shift outside the ±256-KiB window, not necessarily different code.
+The 22.6149% byte mismatch is not a claim that this percentage of
+machine instructions differs.
+
+Next isolate the embedded `IKCFG_ST` gzip member (position, compressed
+length, decompressed exact-byte hash, gzip-header mtime), then locate
+the unchanged compressed member after relocation. Compare build banner
+separately from compile/layout differences; avoid assuming that the
+two different generated module-signing certificates are trusted by
+the actual device. No flashing, repacking, or new build required.
+
+`flash_ready=false`.
