@@ -745,6 +745,68 @@ relocation is not a proof of an invoked function, let alone
 that `/odm/lib/liba2dpoffload.so` is passed as its argument.
 `flash_ready=false`.
 
+### ARM loader import relocations verified on Raspberry Pi (2026-10-26)
+
+The user ran the pinned read-only
+`scripts/audit-hotdog-audio-import-relocations.py` on the
+original SHA-256-verified Hotdog vendor ZIP. Its ELF32
+`SHT_DYNSYM`/`SHT_REL` report confirms:
+
+| Symbol | Undefined dynamic symbol | `.rel.plt` entries | Relocation slot (ELF vaddr) | ARM relocation type |
+| --- | --- | --- | --- | --- |
+| `dlopen` | 1 | **1** | **`0xb5fbc`** | **22 = `R_ARM_JUMP_SLOT`** |
+| `dlsym` | 1 | **1** | **`0xb5fc0`** | **22 = `R_ARM_JUMP_SLOT`** |
+| `android_dlopen_ext` | 0 | 0 | — | — |
+
+The recorded `dlopen` dynamic symbol index is **89**, and
+`dlsym` is **90**. The ELF has **944** `.rel.plt`
+entries, as previously seen. The `0xb5fbc` and `0xb5fc0`
+values are **linker relocation slots**, not addresses of
+instructions that call the loader.
+
+These results establish concrete dynamic linker bindings,
+**not** any executed loader call and **not** proof that the
+A2DP string at `0x1654f` is passed to `dlopen`.
+
+The same audit script was extended to list available `.plt`
+section-header boundaries and each watched import's
+**relocation entry ordinal within its section**, plus the
+known name `R_ARM_JUMP_SLOT` when type ID is 22. Those fields
+can support a later direct PLT disassembly; **do not calculate
+PLT stub addresses by assuming a stub size or ordinal mapping
+without confirming the target ABI and actual stub instructions.**
+
+Updated read-only Pi check:
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH="experiment/hotdog-aosp-clang-r596125"
+  REF="refs/remotes/origin/${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  git show "${REF}:scripts/audit-hotdog-audio-import-relocations.py" \
+    > "$DIR/audit-import-relocations.py.tmp"
+  mv "$DIR/audit-import-relocations.py.tmp" \
+    "$DIR/audit-import-relocations.py"
+
+  python3 "$DIR/audit-import-relocations.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    | tee "$DIR/audio-import-relocations-audit.json"
+)
+```
+
+The added `plt_section_headers`, `relocation_entry_index`,
+and `relocation_type_name` fields require a new run to obtain
+actual values for the pinned ELF. They have been tested on
+**synthetic fixture files** in GitHub CI; no new device-specific
+PLT mapping is claimed in advance.
+
+**`flash_ready=false`**. No proprietary ELF, firmware or
+kernel image was modified.
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
