@@ -863,6 +863,53 @@ Even confirmed PLT-to-GOT matches do **not** identify any code
 call site or tie `dlopen` to the A2DP path `0x1654f`.
 Kernel/ROM ABI and flashability remain unverified.
 
+### Real ARM PLT/GOT mapping verified; direct-caller scan added
+
+The user's Raspberry Pi reran the expanded static import-relocation
+checker against the pinned original audio ELF and ZIP (both SHA256
+checks passed), obtaining:
+
+| Symbol | 3-opcode A32 PLT stub | Calculated GOT target | Actual `R_ARM_JUMP_SLOT` |
+| --- | --- | --- | --- |
+| `dlopen` | **`0xb12a0`** | **`0xb5fbc`** | `0xb5fbc` (match) |
+| `dlsym` | **`0xb12b0`** | **`0xb5fc0`** | `0xb5fc0` (match) |
+
+Both `arm32_three_instruction_pattern` and
+`computed_got_matches_relocation_slot` were **true**.
+The `32+16×944` PLT layout also matched the ELF metadata.
+These facts **confirm the static PLT-to-GOT assignments**;
+they do **not** show which code calls the stub, which argument
+is passed in ARM ABI register `r0`, or whether execution
+reaches it at runtime.
+
+A new v3 version of
+[`scripts/audit-hotdog-a2dp-llvm-objdump.py`](../scripts/audit-hotdog-a2dp-llvm-objdump.py)
+scans **only disassembled direct branch operands** for the
+now-confirmed PLT targets `0xb12a0` and `0xb12b0`. Unlike
+the previous generic text search for the literal words
+`dlopen`/`dlsym`, it checks `BL`, `BLX`, and
+direct `B` targets by numeric address, ignoring the instruction's
+own address and unrelated immediates. It includes up to 32
+caller candidates and the preceding eight disassembly lines
+for review, without exporting full ELF binaries.
+
+Re-run the known-safe Pi command from the **Optional in-memory ARM
+disassembly text hints** section above, fetching the latest
+`audit-hotdog-a2dp-llvm-objdump.py` from the experiment branch.
+Look at:
+
+- `disassembly.direct_plt_branch_targets.dlopen.direct_branch_text_hits`
+- `disassembly.direct_plt_branch_targets.dlopen.caller_samples`
+- `disassembly.direct_plt_branch_targets.dlsym.direct_branch_text_hits`
+- `disassembly.direct_plt_branch_targets.dlsym.caller_samples`
+
+A textual direct branch to a validated stub is **static code-edge
+evidence only**; indirect calls via registers and PIC addressing
+may not appear. Reading nearby instructions does not establish
+full ARM/Thumb control flow or prove `r0` contains the
+A2DP path `0x1654f`; runtime reachability, device ABI and
+flash compatibility remain unverified. **`flash_ready=false`.**
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
