@@ -115,6 +115,45 @@ cryptographically verify every contained blob. The file list could
 include Git LFS pointers or other missing payloads, and link targets
 must not be followed automatically.
 
+
+## Verified Pi-side metadata inventory — 2026-10-26
+
+The user reported a successful download and local run of
+`scripts/inspect-hotdog-vendor-zip.py`. The earlier `git fetch`
+problem was repaired with an explicit remote-tracking refspec.
+
+| Local ZIP metadata | Observed value |
+| --- | --- |
+| ZIP name | `proprietary_vendor_oneplus_hotdog-17.0.zip` |
+| ZIP byte length | `114977497` |
+| Local ZIP SHA-256 | `c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078` |
+| GitLab root | `proprietary_vendor_oneplus_hotdog-17.0` |
+| Total ZIP file entries | **788** |
+| Sum of declared uncompressed file sizes | **463065937 bytes** |
+| `proprietary/` entries | **764** |
+| `radio/` entries | **19** |
+| Repository-root files | **5** |
+| Symlinks detected via ZIP Unix metadata | **0** |
+| `.ko` filenames found | **0** |
+| `BoardConfigVendor.mk` | Present |
+| `hotdog-vendor.mk` | Present |
+| Inspector status | `VENDOR_ZIP_METADATA_ONLY` |
+
+This **user-observed local file digest** identifies that snapshot and
+does not authenticate the source against a trusted upstream signed
+commit, nor independently verify every compressed blob's CRC/data.
+The source commit, matching `sm8150-common` vendor snapshot and
+installed-partition identities are still unverified. No `.ko`
+in this **hotdog-specific** ZIP does not imply `sm8150-common`,
+`vendor_dlkm` or the shipped ROM contains no kernel modules.
+Those module audits remain separately grounded in the reference OTA.
+
+The next offline audit should inspect only `BoardConfigVendor.mk`
+and `hotdog-vendor.mk` as bounded text directly from this ZIP to
+identify included Android makefiles, package lists, copy rules and
+dependencies; do not extract or execute the vendor tree.
+**`flash_ready=false`.**
+
 ## Subsequent compatibility analysis (not automatic)
 
 1. Obtain a verifiable **source revision** for the hotdog ZIP, and
