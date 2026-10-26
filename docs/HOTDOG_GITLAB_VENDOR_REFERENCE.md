@@ -434,6 +434,61 @@ is validated by this lexical check.
 **No vendor firmware or module is authorized for flashing.**
 `flash_ready=false`.
 
+### Soong name-token gate: user-confirmed result (2026-10-26)
+
+The user ran `scripts/audit-hotdog-vendor-soong-names.py` against
+the downloaded ZIP and reported:
+
+| Checked item | Result |
+| --- | --- |
+| Generated root `Android.bp` | Present, **3,955 bytes** |
+| Generated root `Android.mk` | Present, **1,906 bytes** |
+| Lexical `Android.bp` module names | **5** |
+| `Android.mk` `LOCAL_MODULE` name matches | **0** |
+| Requested `PRODUCT_PACKAGES` | **5** |
+| Requested package names present in `Android.bp` | **5/5** |
+| Missing package names | **0** |
+| Probe status | `ALL_PACKAGE_NAMES_LEXICALLY_PRESENT` |
+| `full_soong_build_verified` | `false` |
+
+The five `Android.bp` module-name tokens exactly correspond to
+`audio.primary.msmnile_odm` and the four camera sensor libraries
+`com.qti.sensor.imx471`, `com.qti.sensor.imx481`,
+`com.qti.sensor.imx586`, and `com.qti.sensor.s5k3m5`.
+
+The new, separately tested
+[`scripts/audit-hotdog-vendor-module-blocks.py`](../scripts/audit-hotdog-vendor-module-blocks.py)
+performs a bounded top-level Blueprint brace-block scan and checks
+literal `srcs` path names against ZIP entries. It reports the
+module type and selected installation, architecture and multilib
+property *text observations*. **This does not execute or validate
+Soong's build graph or linker dependencies**, and no result from
+running this new script against the real ZIP has yet been supplied.
+
+To run it against the existing local ZIP (no archive extraction):
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/\${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+
+  git fetch origin "+refs/heads/\${BRANCH}:\${REF}"
+  git show "\${REF}:scripts/audit-hotdog-vendor-module-blocks.py" \
+    > "$DIR/audit-module-blocks.py.partial"
+  mv "$DIR/audit-module-blocks.py.partial" "$DIR/audit-module-blocks.py"
+
+  python3 "$DIR/audit-module-blocks.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    | tee "$DIR/module-blocks-audit.json"
+)
+```
+
+The kernel Clang-22 experiment remains separate and non-flashable.
+`flash_ready=false`.
+
 ## Subsequent compatibility analysis (not automatic)
 
 1. Obtain a verifiable **source revision** for the hotdog ZIP, and
