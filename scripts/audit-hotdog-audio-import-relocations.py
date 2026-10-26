@@ -96,6 +96,79 @@ def cstring(data, offset):
     return name.decode("ascii")
 
 
+
+def _arm_rotate_immediate(word):
+    """Decode 32-bit ARM immediate with right rotate; no instruction execution."""
+    imm = word & 0xff
+    shift = ((word >> 8) & 0xf) * 2
+    return ((imm >> shift) | (imm << (32 - shift))) & 0xffffffff if shift else imm
+
+
+def _arm_add_ip(word, expected_base):
+    # 32-bit ARM DP immediate: ADD ip,pc,#imm or ADD ip,ip,#imm.
+    if ((word >> 25) & 7) != 1:
+        return None
+    if ((word >> 21) & 15) != 4 or ((word >> 20) & 1) != 0:
+        return None
+    if ((word >> 16) & 15) != expected_base or ((word >> 12) & 15) != 12:
+        return None
+    if ((word >> 28) & 15) == 15:
+        return None
+    return _arm_rotate_immediate(word)
+
+
+def _arm_ldr_pc_ip(word):
+    # ARM single-word LDR pc,[ip,#immediate] with pre-indexed addressing.
+    if ((word >> 26) & 3) != 1 or ((word >> 25) & 1) != 0:
+        return None
+    if ((word >> 24) & 1) != 1 or ((word >> 22) & 1) != 0:
+        return None
+    if ((word >> 20) & 1) != 1:
+        return None
+    if ((word >> 16) & 15) != 12 or ((word >> 12) & 15) != 15:
+        return None
+    if ((word >> 28) & 15) == 15:
+        return None
+    displacement = word & 0xfff
+    return displacement if ((word >> 23) & 1) else -displacement
+
+
+def inspect_arm_plt_entry(data, plt_header, relocation_index, relocation_slot):
+    """Validate a 16-byte PLT candidate by decoding 3 ARM opcodes.
+
+    Does not map caller xrefs or prove the corresponding dlopen function is
+    invoked. If any instruction deviates, report unverified, not a match.
+    """
+    start = plt_header["address"] + 32 + 16 * relocation_index
+    end = plt_header["address"] + plt_header["size"]
+    output = {
+        "candidate_entry_vaddr_hex": hex(start),
+        "assumed_entry_size_bytes": 16,
+        "assumed_reserved_header_bytes": 32,
+        "candidate_bounded_by_plt": start >= plt_header["address"] and start + 16 <= end,
+        "arm32_three_instruction_pattern": False,
+        "computed_got_slot_hex": None,
+        "computed_got_matches_relocation_slot": False,
+        "call_site_verified": False,
+        "a2dp_argument_verified": False,
+    }
+    if not output["candidate_bounded_by_plt"]:
+        return output
+    file_off = plt_header["offset"] + start - plt_header["address"]
+    bounded(data, file_off, 16, "ARM PLT candidate")
+    first, second, third = struct.unpack_from("<III", data, file_off)
+    a = _arm_add_ip(first, 15)
+    b = _arm_add_ip(second, 12)
+    c = _arm_ldr_pc_ip(third)
+    if a is None or b is None or c is None:
+        return output
+    output["arm32_three_instruction_pattern"] = True
+    target = (start + 8 + a + b + c) & 0xffffffff
+    output["computed_got_slot_hex"] = hex(target)
+    output["computed_got_matches_relocation_slot"] = target == relocation_slot
+    return output
+
+
 def inspect_elf(data):
     if len(data) < 52 or data[:7] != b"\x7fELF\x01\x01\x01":
         raise ImportRelocationError("Expected ELF32 little-endian")
@@ -213,8 +286,31 @@ def inspect_elf(data):
                     "dynsym_index": symindex,
                     "undefined_symbol": sym["is_undefined"],
                 })
+    # This layout is only a candidate until the 3 ARM32 instructions are
+    # decoded and their resulting GOT address equals the relocation slot.
+    plt_candidates = {}
+    plt = [sec for sec in sections if sec["name"] == ".plt"
+           and sec["type"] == 1 and (sec["flags"] & 4)]
+    relplt = [sec for sec in sections if sec["name"] == ".rel.plt"
+              and sec["type"] == 9]
+    exact_layout = (
+        len(plt) == 1 and len(relplt) == 1
+        and plt[0]["size"] == 32 + (relplt[0]["size"] // 8) * 16
+        and relplt[0]["entsize"] == 8
+    )
+    if exact_layout:
+        for import_name, record in observed.items():
+            for sample in record["relocation_samples"]:
+                if sample["section"] != ".rel.plt" or sample["relocation_type_id"] != 22:
+                    continue
+                plt_candidates[import_name] = inspect_arm_plt_entry(
+                    data, plt[0], sample["relocation_entry_index"],
+                    int(sample["relocation_offset_vaddr_hex"], 16)
+                )
     return {
-        "schema": "op7t-hotdog-audio-import-relocations-v1",
+        "schema": "op7t-hotdog-audio-import-relocations-v2",
+        "plt_32_plus_16_per_relplt_entry_layout_observed": exact_layout,
+        "verified_arm_plt_candidates": plt_candidates,
         "scope": "ELF32_SHT_DYNSYM_and_REL_RELA_metadata_only",
         "relocation_sections_examined": scanned_sections,
         "plt_section_headers": plt_sections,
@@ -228,7 +324,7 @@ def inspect_elf(data):
         "elf_executed": False,
         "elf_extracted_to_disk": False,
         "flash_ready": False,
-        "limitations": "R_ARM_JUMP_SLOT and relocation entry ordinals describe linker metadata. PLT section headers do not map ordinals to stub addresses; no call-site or ARM/Thumb register dataflow verified.",
+        "limitations": "Only a decoded three-instruction ARM PLT sequence whose GOT address equals its R_ARM_JUMP_SLOT is marked mapped; candidates alone never prove caller references or that the A2DP path is passed to dlopen.",
     }
 
 
