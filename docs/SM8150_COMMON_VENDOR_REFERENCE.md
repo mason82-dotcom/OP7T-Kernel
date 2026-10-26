@@ -341,6 +341,65 @@ The earlier 15/15 source-chain result refers only to **source build
 definitions**. It does not conflict with the absence of an A2DP
 `DT_NEEDED` in the actual archived HAL.
 
+### Real Audio HAL ASCII-string probe and narrowed A2DP hypothesis (Raspberry Pi, 2026-10-26)
+
+The user scanned the **already SHA-verified** 810,136-byte archived
+`audio.primary.msmnile.so` in memory for selected exact byte
+sequences, without extracting or executing the member:
+
+| Raw byte substring | Observed occurrences |
+| --- | ---: |
+| `liba2dpoffload` | **1** |
+| `/odm/lib/` | **1** |
+| `/vendor/lib/` | **24** |
+| `dlopen` | **3** |
+| `android_dlopen_ext` | **0** |
+| `dlsym` | **33** |
+| `libaudioEngineerTest` | **1** |
+
+**Critical distinction:** Neither old nor new A2DP path was in the
+parsed 24 `DT_NEEDED` entries, **but `liba2dpoffload` occurs
+somewhere else in the ELF**. Combined with the sole `/odm/lib/`
+substring this raises (but does not confirm) a possible embedded
+`/odm/lib/liba2dpoffload.so` string used for `dlopen` or
+other runtime logic. `dlopen`/`dlsym` substring counts can occur in
+import/export symbols and do not demonstrate an actual runtime call.
+
+To determine exact byte offsets and, where bounded and printable,
+whole NUL-delimited ASCII strings, the new
+[`scripts/audit-hotdog-audio-strings.py`](../scripts/audit-hotdog-audio-strings.py)
+only reads the single ZIP ELF into memory and compares both
+known local SHA-256 digests. It never modifies/extracts ELF binaries.
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  git show "${REF}:scripts/audit-hotdog-audio-strings.py" \
+    > "$DIR/audit-audio-strings.py.partial"
+  mv "$DIR/audit-audio-strings.py.partial" "$DIR/audit-audio-strings.py"
+
+  python3 "$DIR/audit-audio-strings.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    --expect-archive-sha256 c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078 \
+    --expect-elf-sha256 08a20a73c123c793d717f1b8e7078df1b9efb3853753fae7fac269d3a20a829f \
+    | tee "$DIR/audio-strings-audit.json"
+)
+```
+
+The probe distinguishes the precise
+`/odm/lib/liba2dpoffload.so` and legacy
+`/vendor/lib/liba2dpoffload.so` byte patterns from
+substring counts, returning bounded ASCII samples and file offsets.
+It does **not** prove call sites, actual `dlopen` execution,
+linker namespace compatibility, matching common-vendor ELF contents
+or installed-ROM identity. **`flash_ready=false`.**
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
