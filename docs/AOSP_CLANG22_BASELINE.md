@@ -291,3 +291,38 @@ Do not modify the official kernel sources or try to force matching
 kernel hash by replacing signed or embedded bytes. The original
 installed-device trust and flash gates remain unverified;
 `flash_ready=false`.
+
+## Clang-22 System.map section boundaries (Raspberry Pi, 2026-10-26)
+
+The user read the rebuilt kernel's `System.map` relative to `_text`:
+
+| Symbol | Offset | Approximate MiB |
+| --- | ---: | ---: |
+| `_stext` | 2,048 | 0.002 |
+| `_etext` / `__start_rodata` | 26,738,688 | 25.500 |
+| `__end_rodata` | 38,883,328 | 37.082 |
+| `__init_begin` | 39,321,600 | 37.500 |
+| `__init_end` / `_sdata` | 45,613,056 | 43.500 |
+| `_edata` / `__bss_start` | 48,715,776 | 46.459 |
+| `__bss_stop` | 56,573,496 | 53.953 |
+| `_end` | 56,598,528 | 53.977 |
+
+The byte-mismatch hotspot in the **26–34 MiB** window is therefore
+primarily within the rebuilt kernel's **read-only data**, rather than
+predominantly within its `.text`. Numerous `__func__.*.llvm.*`
+symbols around 32.7 MiB are further evidence of compiler-generated
+read-only constants / metadata. A shifted member in the read-only
+region is a plausible contributor to bytewise differences, not proof
+of code identity or runtime compatibility.
+
+Important bounds: the raw ARM64 `Image` has only **48,713,752**
+bytes, whereas `_edata` maps to offset **48,715,776**, 2,024 bytes
+past the end of the file. Do **not** assume every virtual
+`System.map` address is an accessible raw `Image` byte. Clip any
+sectionwise comparison to available file bytes, and treat BSS and
+symbol-to-file-address mapping separately.
+
+The next offline diagnostic should compute per-section differing-byte
+counts and check relocated, high-entropy read-only anchors within
+those mapped, bounded file regions; no further kernel compile is
+required to gather this evidence. `flash_ready=false`.
