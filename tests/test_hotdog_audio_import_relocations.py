@@ -55,16 +55,35 @@ class AudioImportRelocationTests(unittest.TestCase):
         self.assertEqual(dlopen["undefined_dynsym_count"], 1)
         self.assertEqual(dlopen["relocation_entry_count"], 1)
         self.assertEqual(dlopen["relocation_samples"][0]["relocation_type_id"], 22)
+        self.assertEqual(dlopen["relocation_samples"][0]["relocation_type_name"], "R_ARM_JUMP_SLOT")
+        self.assertEqual(dlopen["relocation_samples"][0]["relocation_entry_index"], 0)
         self.assertEqual(
             dlopen["relocation_samples"][0]["relocation_offset_vaddr_hex"],
             "0xf010"
         )
         self.assertEqual(r["loader_imports"]["dlsym"]["relocation_entry_count"], 1)
+        self.assertEqual(r["loader_imports"]["dlsym"]["relocation_samples"][0]["relocation_entry_index"], 1)
+        self.assertEqual(r["plt_section_headers"], [])
         self.assertEqual(r["loader_imports"]["android_dlopen_ext"]["undefined_dynsym_count"], 0)
         self.assertFalse(r["proves_dlopen_called_from_audio_hal"])
         self.assertFalse(r["proves_a2dp_path_argument_passed_to_dlopen"])
         self.assertFalse(r["elf_extracted_to_disk"])
         self.assertFalse(r["flash_ready"])
+
+    def test_plt_section_metadata_not_interpreted_as_stub_proof(self):
+        blob = bytearray(make_elf())
+        # Enlarge header table by adding a .plt section as sixth member.
+        shstr = b"\0.shstrtab\0.dynstr\0.dynsym\0.rel.plt\0.plt\0"
+        blob[0x200:0x200 + len(shstr)] = shstr
+        struct.pack_into("<I", blob, 16 + 34, 6)  # e_shnum
+        struct.pack_into("<IIIIIIIIII", blob, 0x600 + 5 * 40,
+                         shstr.index(b".plt"), 1, 0x6, 0x4300,
+                         0x500, 0x20, 0, 0, 4, 4)
+        report = mod.inspect_elf(bytes(blob))
+        self.assertEqual(len(report["plt_section_headers"]), 1)
+        self.assertEqual(report["plt_section_headers"][0]["vaddr_hex"], "0x4300")
+        self.assertTrue(report["plt_section_headers"][0]["executable_flag"])
+        self.assertFalse(report["proves_plt_stub_address"])
 
     def test_symbol_import_does_not_imply_plt_relocation(self):
         r = mod.inspect_elf(make_elf(include_dlopen=False))
