@@ -217,6 +217,58 @@ Next verify the existing hotdog ZIP's one audio ELF dynamic table
 data-only ELF metadata parser. No common proprietary binaries have
 been downloaded, and ROM/Kernel runtime compatibility is still unknown.
 
+### Direct ELF32 `DT_NEEDED` evidence — pending real ZIP probe
+
+The new
+[`scripts/audit-hotdog-audio-elf.py`](../scripts/audit-hotdog-audio-elf.py)
+reads only **one selected** existing ZIP member
+`proprietary/odm/lib/hw/audio.primary.msmnile.so` into bounded
+memory, never writes or executes it. It validates the 32-bit ARM ELF
+header and parses program-header `PT_DYNAMIC` entries for
+`DT_STRTAB`, `DT_STRSZ`, `DT_NEEDED` and optional `DT_SONAME`.
+It verifies the user's archived ZIP's SHA-256 before any content read,
+if supplied.
+
+Possible results:
+- `EXPECTED_ODM_NEEDED_PATH_PRESENT`: `/odm/lib/liba2dpoffload.so`
+  appears in dynamic dependencies without the legacy `/vendor/lib/`
+  path.
+- `LEGACY_VENDOR_NEEDED_PATH_PRESENT`: only the original
+  `/vendor/lib/liba2dpoffload.so` is present; repository-level fixup
+  is **not shown applied** to this ZIP member.
+- `BOTH_LEGACY_AND_ODM_NEEDED_PATHS` or
+  `EXPECTED_FULLPATH_NEEDED_NOT_OBSERVED`: ambiguous or
+  different actual dependency names. Do not guess the result.
+
+Run on Raspberry Pi, without downloading or unpacking the ELF:
+
+```bash
+(
+  set -euo pipefail
+  cd ~/Projekte/OP7T-Kernel-KSU-Review
+
+  BRANCH=experiment/hotdog-aosp-clang-r596125
+  REF="refs/remotes/origin/${BRANCH}"
+  DIR="$PWD/.work/vendor-hotdog-17"
+
+  git fetch origin "+refs/heads/${BRANCH}:${REF}"
+  git show "${REF}:scripts/audit-hotdog-audio-elf.py" \
+    > "$DIR/audit-audio-elf.py.partial"
+  mv "$DIR/audit-audio-elf.py.partial" "$DIR/audit-audio-elf.py"
+
+  python3 "$DIR/audit-audio-elf.py" \
+    "$DIR/proprietary_vendor_oneplus_hotdog-17.0.zip" \
+    --expect-archive-sha256 c038a3ccab574795c496d043f4d735b920dbbbab279232229a80c94aa32a0078 \
+    | tee "$DIR/audio-elf-dynamic-audit.json"
+)
+```
+
+The `elf_sha256` describes the ELF bytes observed in the ZIP, not a
+trusted signature; the list of required libraries is not proof that
+they can all be resolved at runtime. This narrow metadata read does
+**not** touch common-vendor proprietary ELF contents, install
+anything, disable verification or change the kernel. **`flash_ready=false`.**
+
 ## Outstanding safety and completeness gates
 
 - Independently establish the **2026-10-21 OTA's exact common vendor
