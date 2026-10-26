@@ -9,10 +9,12 @@ on:
       - "scripts/inspect-hotdog-vendor-makefiles.py"
       - "scripts/audit-hotdog-vendor-copyfiles.py"
       - "scripts/audit-hotdog-vendor-soong-names.py"
+      - "scripts/audit-hotdog-vendor-module-blocks.py"
       - "tests/test_hotdog_vendor_zip.py"
       - "tests/test_hotdog_vendor_makefiles.py"
       - "tests/test_hotdog_vendor_copyfiles.py"
       - "tests/test_hotdog_vendor_soong_names.py"
+      - "tests/test_hotdog_vendor_module_blocks.py"
       - "docs/HOTDOG_GITLAB_VENDOR_REFERENCE.md"
       - ".github/workflows/hotdog-vendor-reference.yml"
   workflow_dispatch:
@@ -29,7 +31,7 @@ jobs:
       - name: Check reference metadata
         run: python3 -m json.tool config/hotdog-vendor-reference.json >/dev/null
       - name: Check ZIP inventory Python syntax
-        run: python3 -m py_compile scripts/inspect-hotdog-vendor-zip.py scripts/inspect-hotdog-vendor-makefiles.py scripts/audit-hotdog-vendor-copyfiles.py scripts/audit-hotdog-vendor-soong-names.py
+        run: python3 -m py_compile scripts/inspect-hotdog-vendor-zip.py scripts/inspect-hotdog-vendor-makefiles.py scripts/audit-hotdog-vendor-copyfiles.py scripts/audit-hotdog-vendor-soong-names.py scripts/audit-hotdog-vendor-module-blocks.py
       - name: Run synthetic, network-free vendor archive checks
         run: python3 -m unittest discover -s tests -p test_hotdog_vendor_zip.py -v
       - name: Run synthetic, network-free vendor Makefile checks
@@ -38,6 +40,8 @@ jobs:
         run: python3 -m unittest discover -s tests -p test_hotdog_vendor_copyfiles.py -v
       - name: Probe vendor Soong module names using synthetic archives
         run: python3 -m unittest discover -s tests -p test_hotdog_vendor_soong_names.py -v
+      - name: Probe bounded vendor Blueprint module block structure
+        run: python3 -m unittest discover -s tests -p test_hotdog_vendor_module_blocks.py -v
       - name: Verify no proprietary archive is committed
         shell: bash
         run: |
