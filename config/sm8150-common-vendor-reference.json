@@ -1,0 +1,35 @@
+{
+  "schema": "op7t-sm8150-common-vendor-reference-v1",
+  "device_family": "oneplus-sm8150",
+  "device_scope": "hotdog",
+  "rom_android": 17,
+  "rom_crdroid": 13,
+  "repository": "crdroidandroid/proprietary_vendor_oneplus_sm8150-common",
+  "source_url": "https://github.com/crdroidandroid/proprietary_vendor_oneplus_sm8150-common",
+  "branch": "17.0",
+  "branch_commit_observed_2026_10_26": "6586000353465cc53b42189be056d5c037e14ef9",
+  "source_commit_verified_through_github_api": true,
+  "tree_inventory_observed_2026_10_26": {
+    "recursive_tree_complete": true,
+    "tree_entries": 1102,
+    "blob_entries": 1000,
+    "git_reported_blob_bytes": 524843573
+  },
+  "full_rom_target_path": "vendor/oneplus/sm8150-common",
+  "official_device_dependency": "https://github.com/crdroidandroid/android_device_oneplus_sm8150-common/blob/17.0/crdroid.dependencies",
+  "vendor_makefile": "sm8150-common-vendor.mk",
+  "blueprint_file": "Android.bp",
+  "cross_tree_audio_module": {
+    "module": "liba2dpoffload_odm",
+    "stem": "liba2dpoffload",
+    "source": "proprietary/odm/lib/liba2dpoffload.so",
+    "compile_multilib": "32",
+    "device_specific": true
+  },
+  "original_ota_revision_attested": false,
+  "installed_rom_vendor_revision_attested": false,
+  "module_abi_compatible": false,
+  "proprietary_binary_contents_validated": false,
+  "flash_ready": false,
+  "note": "Pinned GitHub 17.0 branch tip is a verifiable source tree reference, not proof of identity with the October 21 2026 official ROM build or device partitions. Do not import proprietary blobs into this public project."
+}
